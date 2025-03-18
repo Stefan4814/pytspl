@@ -6,6 +6,9 @@ from typing import Hashable, Iterable
 import numpy as np
 from scipy.sparse import csr_matrix
 
+from pytspl.cell_complex import CellComplex
+from pytspl.cell_complex.ccbuilder import CCBuilder
+
 from pytspl.decomposition.eigendecomposition import (
     get_curl,
     get_curl_eigenpair,
@@ -22,7 +25,7 @@ from pytspl.decomposition.hodge_decomposition import (
 )
 
 
-class SimplicialComplex:
+class SimplicialComplex(CellComplex):
     """Data structure class for a simplicial complex."""
 
     def __init__(
@@ -45,16 +48,17 @@ class SimplicialComplex:
             edge_features (dict, optional): Dict of edge features.
             Defaults to {}.
         """
-        self.nodes = nodes
-        self.edges = edges
+        assert all(len(t) == 3 for t in triangles), "Triangles must have exactly 3 vertices"
+
+        super().__init__(
+            nodes=nodes,
+            edges=edges,
+            polygons=triangles,
+            node_features=node_features,
+            edge_features=edge_features
+        )
         self.triangles = triangles
-
-        self.node_features = node_features
-        self.edge_features = edge_features
-
-        self.B1 = self.edges_to_B1(edges, len(nodes))
-        self.B2 = self.triangles_to_B2(triangles, edges)
-
+        
     def print_summary(self):
         """
         Print the summary of the simplicial complex.
@@ -65,57 +69,57 @@ class SimplicialComplex:
         print(f"Shape: {self.shape}")
         print(f"Max Dimension: {self.max_dim}")
 
-    def edges_to_B1(self, edges: list, num_nodes: int) -> np.ndarray:
-        """
-        Create the B1 matrix (node-edge) from the edges.
+    # def edges_to_B1(self, edges: list, num_nodes: int) -> np.ndarray:
+    #     """
+    #     Create the B1 matrix (node-edge) from the edges.
 
-        Args:
-            edges (list): List of edges.
-            num_nodes (int): Number of nodes.
+    #     Args:
+    #         edges (list): List of edges.
+    #         num_nodes (int): Number of nodes.
 
-        Returns:
-            np.ndarray: B1 matrix.
-        """
-        B1 = np.zeros((num_nodes, len(edges)))
+    #     Returns:
+    #         np.ndarray: B1 matrix.
+    #     """
+    #     B1 = np.zeros((num_nodes, len(edges)))
 
-        for j, edge in enumerate(edges):
-            from_node, to_node = edge
-            B1[from_node, j] = -1
-            B1[to_node, j] = 1
-        return B1
+    #     for j, edge in enumerate(edges):
+    #         from_node, to_node = edge
+    #         B1[from_node, j] = -1
+    #         B1[to_node, j] = 1
+    #     return B1
 
-    def triangles_to_B2(self, triangles: list, edges: list) -> np.ndarray:
-        """
-        Create the B2 matrix (edge-triangle) from the triangles.
+    # def triangles_to_B2(self, triangles: list, edges: list) -> np.ndarray:
+    #     """
+    #     Create the B2 matrix (edge-triangle) from the triangles.
 
-        Args:
-            triangles (list): List of triangles.
-            edges (list): List of edges.
+    #     Args:
+    #         triangles (list): List of triangles.
+    #         edges (list): List of edges.
 
-        Returns:
-            np.ndarray: B2 matrix.
-        """
-        B2 = np.zeros((len(edges), len(triangles)))
-        for j, triangle in enumerate(triangles):
-            a, b, c = triangle
-            try:
-                index_a = edges.index((a, b))
-            except ValueError:
-                index_a = edges.index((b, a))
-            try:
-                index_b = edges.index((b, c))
-            except ValueError:
-                index_b = edges.index((c, b))
-            try:
-                index_c = edges.index((a, c))
-            except ValueError:
-                index_c = edges.index((c, a))
+    #     Returns:
+    #         np.ndarray: B2 matrix.
+    #     """
+    #     B2 = np.zeros((len(edges), len(triangles)))
+    #     for j, triangle in enumerate(triangles):
+    #         a, b, c = triangle
+    #         try:
+    #             index_a = edges.index((a, b))
+    #         except ValueError:
+    #             index_a = edges.index((b, a))
+    #         try:
+    #             index_b = edges.index((b, c))
+    #         except ValueError:
+    #             index_b = edges.index((c, b))
+    #         try:
+    #             index_c = edges.index((a, c))
+    #         except ValueError:
+    #             index_c = edges.index((c, a))
 
-            B2[index_a, j] = 1
-            B2[index_c, j] = -1
-            B2[index_b, j] = 1
+    #         B2[index_a, j] = 1
+    #         B2[index_c, j] = -1
+    #         B2[index_b, j] = 1
 
-        return B2
+    #     return B2
 
     def generate_coordinates(self) -> dict:
         """
@@ -565,3 +569,21 @@ class SimplicialComplex:
                 "Invalid component. Choose from 'harmonic',"
                 + "'curl', or 'gradient'."
             )
+        
+    def to_cell_complex(self):
+        """
+        Convert the simplicial complex into a cell complex by detecting larger polygons.
+
+        Returns:
+            CellComplex: The resulting cell complex.
+        """
+        # Use CCBuilder to find larger cycles (polygons)
+        cc_builder = CCBuilder(
+            nodes=self.nodes,
+            edges=self.edges,
+            node_features=self.node_features,
+            edge_features=self.edge_features
+        )
+
+        # Create a CellComplex with these polygons
+        return cc_builder.to_cell_complex()

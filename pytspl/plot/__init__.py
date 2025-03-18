@@ -1,3 +1,4 @@
 """Module for plotting simplicial complexes."""
 
-from .plot import SCPlot
+from .plot_sc import SCPlot
+from .plot_cc import CCPlot

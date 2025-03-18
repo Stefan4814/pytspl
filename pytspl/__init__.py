@@ -17,7 +17,7 @@ from pytspl.io import (
 )
 
 # plotting module
-from pytspl.plot import SCPlot
+from pytspl.plot import SCPlot, CCPlot
 
 from . import decomposition  # noqa: F401
 from . import filters  # noqa: F401
@@ -25,3 +25,4 @@ from . import hogde_gp  # noqa: F401
 from . import io  # noqa: F401
 from . import plot  # noqa: F401
 from . import simplicial_complex  # noqa: F401
+from . import cell_complex
