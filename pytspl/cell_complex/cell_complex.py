@@ -220,6 +220,14 @@ class CellComplex:
             ) + self.upper_laplacian_matrix(rank=rank)
         else:
             raise ValueError("Rank must be between 0 and 2.")
+        
+    def print_summary(self):
+        """
+        Print the summary of the simplicial complex.
+        """
+        print(f"Num. of nodes: {len(self.nodes)}")
+        print(f"Num. of edges: {len(self.edges)}")
+        print(f"Num. of triangles: {len(self.polygons)}")
     
     
     

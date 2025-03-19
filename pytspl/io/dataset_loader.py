@@ -30,7 +30,7 @@ def list_datasets() -> list:
     return transportation_datasets + other_datasets
 
 
-def load_dataset(dataset: str) -> tuple:
+def load_dataset(dataset: str, load_cell_complex = False) -> tuple:
     """
     Load the dataset and return the simplicial complex
     and coordinates.
@@ -55,20 +55,25 @@ def load_dataset(dataset: str) -> tuple:
         )
 
     if dataset in DATASETS:
-        sc, coordinates, flow = DATASETS[dataset]()
+        complex, coordinates, flow = DATASETS[dataset]()
     else:
-        sc, coordinates, flow = load_transportation_dataset(dataset=dataset)
+        complex, coordinates, flow = load_transportation_dataset(dataset=dataset)
 
-    assert sc is not None
+    if load_cell_complex:
+        complex = complex.to_cell_complex()
+
+    assert complex is not None
     assert coordinates is not None
     assert flow is not None
 
+
+
     # each node should have a coordinate
-    assert len(sc.nodes) == len(coordinates)
+    assert len(complex.nodes) == len(coordinates)
 
     # print summary of the dataset
-    sc.print_summary()
+    complex.print_summary()
     print(f"Coordinates: {len(coordinates)}")
     print(f"Flow: {len(flow)}")
 
-    return sc, coordinates, flow
+    return complex, coordinates, flow

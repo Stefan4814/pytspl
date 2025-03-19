@@ -10,15 +10,16 @@ import numpy as np
 
 from pytspl.decomposition.frequency_component import FrequencyComponent
 from pytspl.simplicial_complex import SimplicialComplex
-
+from pytspl.cell_complex import CellComplex
 
 class SCPlot:
     """Class for plotting simplicial complexes."""
 
     def __init__(
         self,
-        simplicial_complex: SimplicialComplex,
+        complex: CellComplex,
         coordinates: dict = None,
+        plot_sc: bool = True
     ) -> None:
         """
         Args:
@@ -28,8 +29,9 @@ class SCPlot:
             [node_id : (x, y)] is used for placing the 0-simplices. The
             standard nx spring layer is used otherwise.
         """
-        self.sc = simplicial_complex
+        self.complex = complex
         self.pos = coordinates
+        self.plot_sc = plot_sc
 
     def _init_axes(self, ax) -> dict:
         """
@@ -47,7 +49,7 @@ class SCPlot:
         if self.pos is None:
             # use spring layout if no coordinates are provided
             G = nx.Graph()
-            G.add_edges_from(self.sc.edges)
+            G.add_edges_from(self.complex.edges)
             layout = nx.spring_layout(G)
             self.pos = layout
             # set the axis limits to a square
@@ -84,7 +86,7 @@ class SCPlot:
         Returns:
             dict: The edge flow dictionary.
         """
-        return dict(zip(self.sc.edges, flow))
+        return dict(zip(self.complex.edges, flow))
 
     def draw_sc_nodes(
         self,
@@ -158,7 +160,7 @@ class SCPlot:
             fig = ax.get_figure()
             fig.colorbar(mappable=color_map, ax=ax)
 
-        nodes = self.sc.nodes
+        nodes = self.complex.nodes
 
         node_collection = ax.scatter(
             [self.pos[node_id][0] for node_id in nodes],
@@ -207,7 +209,7 @@ class SCPlot:
             alpha (float, optional): The transparency of the node labels.
             Defaults to None.
         """
-        for node_id in self.sc.nodes:
+        for node_id in self.complex.nodes:
             (x, y) = self.pos[node_id]
             plt.text(
                 x,
@@ -276,7 +278,7 @@ class SCPlot:
             edges = list(edge_flow.keys())
             edge_color = list(edge_flow.values())
         else:
-            edges = self.sc.edges
+            edges = self.complex.edges
 
         # create a graph
         graph = nx.DiGraph()
@@ -331,19 +333,32 @@ class SCPlot:
         )
 
         # fill the 2-simplices (triangles)
-        for i, j, k in self.sc.triangles:
-            (x0, y0) = self.pos[i]
-            (x1, y1) = self.pos[j]
-            (x2, y2) = self.pos[k]
-            tri = plt.Polygon(
-                [[x0, y0], [x1, y1], [x2, y2]],
-                edgecolor="k",
-                facecolor=plt.cm.Blues(0.4),
-                alpha=0.3,
-                lw=0.5,
-                zorder=0,
-            )
-            ax.add_patch(tri)
+        if self.plot_sc:
+            for i, j, k in self.complex.triangles:
+                (x0, y0) = self.pos[i]
+                (x1, y1) = self.pos[j]
+                (x2, y2) = self.pos[k]
+                tri = plt.Polygon(
+                    [[x0, y0], [x1, y1], [x2, y2]],
+                    edgecolor="k",
+                    facecolor=plt.cm.Blues(0.4),
+                    alpha=0.3,
+                    lw=0.5,
+                    zorder=0,
+                )
+                ax.add_patch(tri)
+        else:
+            for poly in self.complex.polygons:
+                poly_coords = [self.pos[node] for node in poly]
+                polygon = plt.Polygon(
+                    poly_coords,
+                    edgecolor="k",
+                    facecolor=plt.cm.Blues(0.4),
+                    alpha=0.3,
+                    lw=0.5,
+                    zorder=0,
+                )
+                ax.add_patch(polygon)
 
     def _calculate_edge_label_position(
         self, src: tuple, dest: tuple, offset: float
@@ -620,7 +635,7 @@ class SCPlot:
         fig = plt.figure(figsize=figsize)
 
         if component is not None:
-            component_flow = self.sc.get_component_flow(
+            component_flow = self.complex.get_component_flow(
                 flow=flow,
                 component=component,
                 round_fig=round_fig,
@@ -637,21 +652,21 @@ class SCPlot:
         # if no component is specified, draw all three components
         else:
 
-            f_g = self.sc.get_component_flow(
+            f_g = self.complex.get_component_flow(
                 flow=flow,
                 component=FrequencyComponent.GRADIENT.value,
                 round_fig=round_fig,
                 round_sig_fig=round_sig_fig,
             )
 
-            f_c = self.sc.get_component_flow(
+            f_c = self.complex.get_component_flow(
                 flow=flow,
                 component=FrequencyComponent.CURL.value,
                 round_fig=round_fig,
                 round_sig_fig=round_sig_fig,
             )
 
-            f_h = self.sc.get_component_flow(
+            f_h = self.complex.get_component_flow(
                 flow=flow,
                 component=FrequencyComponent.HARMONIC.value,
                 round_fig=round_fig,
@@ -706,7 +721,7 @@ class SCPlot:
         """
         viz_per_row = 3
 
-        U, eigenvals = self.sc.get_component_eigenpair(component=component)
+        U, eigenvals = self.complex.get_component_eigenpair(component=component)
 
         # if no eigenvector indices are provided, draw all eigenvectors
         if len(eigenvector_indices) == 0:
