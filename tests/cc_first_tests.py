@@ -20,10 +20,10 @@ class TestCellComplexes:
         sc = cc.to_simplicial_complex()
         assert len(sc.triangles) == 3
         print("Triangle: ", sc.triangles)
+        # print("\n")
+        # print(sc.B1)
         print("\n")
-        print(sc.B1)
-        print("\n")
-        print(sc.B2)
+        print(sc.laplacian_matrix())
 
 
 
@@ -41,3 +41,5 @@ class TestCellComplexes:
         assert cc.nodes == list(coordinates.keys())
         assert len(cc.polygons) == 4
         print("Polygons found:", cc.polygons)
+        print("\n")
+        print(cc.laplacian_matrix())

@@ -217,38 +217,38 @@ class SimplicialComplex(CellComplex):
         """Identity matrix of the simplicial complex."""
         return np.eye(len(self.nodes))
 
-    def tocsr(self, matrix: np.ndarray) -> csr_matrix:
-        """
-        Convert a numpy array to a csr_matrix.
+    # def tocsr(self, matrix: np.ndarray) -> csr_matrix:
+    #     """
+    #     Convert a numpy array to a csr_matrix.
 
-        Args:
-            matrix (np.ndarray): Numpy array to convert.
+    #     Args:
+    #         matrix (np.ndarray): Numpy array to convert.
 
-        Returns:
-            csr_matrix: Compressed Sparse Row matrix.
-        """
-        return csr_matrix(matrix, dtype=float)
+    #     Returns:
+    #         csr_matrix: Compressed Sparse Row matrix.
+    #     """
+    #     return csr_matrix(matrix, dtype=float)
 
-    def incidence_matrix(self, rank: int) -> csr_matrix:
-        """
-        Compute the incidence matrix of the simplicial complex.
+    # def incidence_matrix(self, rank: int) -> csr_matrix:
+    #     """
+    #     Compute the incidence matrix of the simplicial complex.
 
-        Args:
-            rank (int): Rank of the incidence matrix.
+    #     Args:
+    #         rank (int): Rank of the incidence matrix.
 
-        Returns:
-            csr_matrix: Incidence matrix of the simplicial complex.
-        """
-        if rank == 0:
-            return np.ones(len(self.nodes), dtype=float)
-        elif rank == 1:
-            return self.tocsr(self.B1)
-        elif rank == 2:
-            return self.tocsr(self.B2)
-        else:
-            raise ValueError(
-                "Rank cannot be larger than the dimension of the complex."
-            )
+    #     Returns:
+    #         csr_matrix: Incidence matrix of the simplicial complex.
+    #     """
+    #     if rank == 0:
+    #         return np.ones(len(self.nodes), dtype=float)
+    #     elif rank == 1:
+    #         return self.tocsr(self.B1)
+    #     elif rank == 2:
+    #         return self.tocsr(self.B2)
+    #     else:
+    #         raise ValueError(
+    #             "Rank cannot be larger than the dimension of the complex."
+    #         )
 
     def adjacency_matrix(self) -> csr_matrix:
         """
@@ -268,80 +268,80 @@ class SimplicialComplex(CellComplex):
         adjacency_mat = csr_matrix(adjacency_mat)
         return adjacency_mat
 
-    def laplacian_matrix(self) -> csr_matrix:
-        """
-        Compute the Laplacian matrix of the simplicial complex.
+    # def laplacian_matrix(self) -> csr_matrix:
+    #     """
+    #     Compute the Laplacian matrix of the simplicial complex.
 
-        Returns:
-            csr_matrix: Laplacian matrix of the simplicial complex.
-        """
-        B1 = self.incidence_matrix(rank=1)
-        return B1 @ B1.T
+    #     Returns:
+    #         csr_matrix: Laplacian matrix of the simplicial complex.
+    #     """
+    #     B1 = self.incidence_matrix(rank=1)
+    #     return B1 @ B1.T
 
-    def lower_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
-        """
-        Compute the lower Laplacian matrix of the simplicial complex.
+    # def lower_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
+    #     """
+    #     Compute the lower Laplacian matrix of the simplicial complex.
 
-        Args:
-            rank (int): Rank of the lower Laplacian matrix.
+    #     Args:
+    #         rank (int): Rank of the lower Laplacian matrix.
 
-        ValueError:
-            If the rank is not 1 or 2.
+    #     ValueError:
+    #         If the rank is not 1 or 2.
 
-        Returns:
-            csr_matrix: Lower Laplacian matrix of the simplicial complex.
-        """
-        if rank == 1:
-            B1 = self.incidence_matrix(rank=1)
-            return B1.T @ B1
-        elif rank == 2:
-            B2 = self.incidence_matrix(rank=2)
-            return B2.T @ B2
-        else:
-            raise ValueError("Rank must be either 1 or 2.")
+    #     Returns:
+    #         csr_matrix: Lower Laplacian matrix of the simplicial complex.
+    #     """
+    #     if rank == 1:
+    #         B1 = self.incidence_matrix(rank=1)
+    #         return B1.T @ B1
+    #     elif rank == 2:
+    #         B2 = self.incidence_matrix(rank=2)
+    #         return B2.T @ B2
+    #     else:
+    #         raise ValueError("Rank must be either 1 or 2.")
 
-    def upper_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
-        """
-        Compute the upper Laplacian matrix of the simplicial complex.
+    # def upper_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
+    #     """
+    #     Compute the upper Laplacian matrix of the simplicial complex.
 
-        Args:
-            rank (int): Rank of the upper Laplacian matrix.
+    #     Args:
+    #         rank (int): Rank of the upper Laplacian matrix.
 
-        ValueError:
-            If the rank is not 0 or 1.
+    #     ValueError:
+    #         If the rank is not 0 or 1.
 
-        Returns:
-            csr_matrix: Upper Laplacian matrix of the simplicial complex.
-        """
-        if rank == 0:
-            return self.laplacian_matrix()
-        elif rank == 1:
-            B2 = self.incidence_matrix(rank=2)
-            return B2 @ B2.T
-        else:
-            raise ValueError("Rank must be either 0 or 1.")
+    #     Returns:
+    #         csr_matrix: Upper Laplacian matrix of the simplicial complex.
+    #     """
+    #     if rank == 0:
+    #         return self.laplacian_matrix()
+    #     elif rank == 1:
+    #         B2 = self.incidence_matrix(rank=2)
+    #         return B2 @ B2.T
+    #     else:
+    #         raise ValueError("Rank must be either 0 or 1.")
 
-    def hodge_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
-        """
-        Compute the Hodge Laplacian matrix of the simplicial complex.
+    # def hodge_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
+    #     """
+    #     Compute the Hodge Laplacian matrix of the simplicial complex.
 
-        Args:
-            rank (int): Rank of the Hodge Laplacian matrix.
+    #     Args:
+    #         rank (int): Rank of the Hodge Laplacian matrix.
 
-        ValueError:
-            If the rank is not 0, 1, or 2.
+    #     ValueError:
+    #         If the rank is not 0, 1, or 2.
 
-        Returns:
-            csr_matrix: Hodge Laplacian matrix of the simplicial complex.
-        """
-        if rank == 0:
-            return self.laplacian_matrix()
-        elif rank == 1:
-            return self.lower_laplacian_matrix(
-                rank=rank
-            ) + self.upper_laplacian_matrix(rank=rank)
-        else:
-            raise ValueError("Rank must be between 0 and 2.")
+    #     Returns:
+    #         csr_matrix: Hodge Laplacian matrix of the simplicial complex.
+    #     """
+    #     if rank == 0:
+    #         return self.laplacian_matrix()
+    #     elif rank == 1:
+    #         return self.lower_laplacian_matrix(
+    #             rank=rank
+    #         ) + self.upper_laplacian_matrix(rank=rank)
+    #     else:
+    #         raise ValueError("Rank must be between 0 and 2.")
 
     def apply_lower_shifting(
         self, flow: np.ndarray, steps: int = 1
@@ -570,7 +570,7 @@ class SimplicialComplex(CellComplex):
                 + "'curl', or 'gradient'."
             )
         
-    def to_cell_complex(self):
+    def to_cell_complex(self) -> CellComplex:
         """
         Convert the simplicial complex into a cell complex by detecting larger polygons.
 
