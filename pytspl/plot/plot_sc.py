@@ -13,7 +13,7 @@ from pytspl.simplicial_complex import SimplicialComplex
 from pytspl.cell_complex import CellComplex
 
 class SCPlot:
-    """Class for plotting simplicial complexes."""
+    """Class for plotting simplicial/cell complexes."""
 
     def __init__(
         self,
@@ -23,11 +23,10 @@ class SCPlot:
     ) -> None:
         """
         Args:
-            simplicial_complex (SimplicialComplex): The simplicial
+            complex (CellComplex): The cell complex
             complex network object.
-            coordinates (dict, optional): Dict of positions
-            [node_id : (x, y)] is used for placing the 0-simplices. The
-            standard nx spring layer is used otherwise.
+            coordinates (dict): Dict of positions
+            plot_sc (bool): whether to plot only simplicial complexes or all the cell complexes
         """
         self.complex = complex
         self.pos = coordinates
@@ -105,7 +104,7 @@ class SCPlot:
         ax=None,
     ) -> None:
         """
-        Draw the nodes of the simplicial complex.
+        Draw the nodes of the simplicial/cell_complex complex.
 
         Args:
             node_size (int, optional): The size of the nodes.
@@ -237,7 +236,7 @@ class SCPlot:
         ax=None,
     ) -> None:
         """
-        Draw the edges of the simplicial complex.
+        Draw the edges of the simplicial/cell complex.
 
         Args:
             edge_flow (dict, optional): The flow of the edges.

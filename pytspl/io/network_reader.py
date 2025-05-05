@@ -133,7 +133,8 @@ def read_csv(
     dest_col: str,
     feature_cols: list = None,
     start_index_zero: bool = True,
-) -> SCBuilder:
+    read_simplicial_complex: bool = True
+):
     """Read a csv file and returns a graph.
 
     Args:
@@ -147,7 +148,7 @@ def read_csv(
         start_index_zero (bool): True, if the node ids start from 0. False,
 
     Returns:
-       SCBuilder: SC builder object to build the simplicial complex.
+       SC builder or CC builder object to build the simplicial complex or the cell complex.
     """
     df = pd.read_csv(filename, sep=delimiter)
 
@@ -169,62 +170,20 @@ def read_csv(
                 feature_cols
             ].to_dict()
 
-    return SCBuilder(
-        nodes=nodes,
-        edges=edges,
-        node_features=node_features,
-        edge_features=edge_features,
-    )
-
-def cc_read_csv(
-    filename: str,
-    delimiter: str,
-    src_col: str,
-    dest_col: str,
-    feature_cols: list = None,
-    start_index_zero: bool = True,
-) -> CCBuilder:
-    """Read a csv file and returns a graph.
-
-    Args:
-        filename (str): The name of the csv file.
-        delimiter (str): The delimiter used in the csv file.
-        src_col (str): The name of the column containing the source nodes.
-        dest_col (str): The name of the column containing the destination
-        nodes.
-        feature_cols (list, optional): The names of the feature columns.
-        Defaults to None.
-        start_index_zero (bool): True, if the node ids start from 0. False,
-
-    Returns:
-       SCBuilder: SC builder object to build the simplicial complex.
-    """
-    df = pd.read_csv(filename, sep=delimiter)
-
-    # get the nodes and edges
-    nodes, edges = _extract_nodes_edges(
-        df=df,
-        src_col=src_col,
-        dest_col=dest_col,
-        start_index_zero=start_index_zero,
-    )
-
-    # add features if any
-    edge_features = {}
-    node_features = {}
-
-    if len(feature_cols) > 0:
-        for i, (from_node, to_node) in enumerate(edges):
-            edge_features[(from_node, to_node)] = df.iloc[i][
-                feature_cols
-            ].to_dict()
-
-    return CCBuilder(
-        nodes=nodes,
-        edges=edges,
-        node_features=node_features,
-        edge_features=edge_features,
-    )
+    if read_simplicial_complex:
+        return SCBuilder(
+            nodes=nodes,
+            edges=edges,
+            node_features=node_features,
+            edge_features=edge_features,
+        )
+    else:
+        return CCBuilder(
+            nodes=nodes,
+            edges=edges,
+            node_features=node_features,
+            edge_features=edge_features,
+        )
 
 
 def read_B2(B2_filename: str, edges: np.ndarray) -> list:

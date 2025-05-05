@@ -17,7 +17,7 @@ from pytspl.io import (
 )
 
 # plotting module
-from pytspl.plot import SCPlot, CCPlot
+from pytspl.plot import SCPlot
 
 from . import decomposition  # noqa: F401
 from . import filters  # noqa: F401
