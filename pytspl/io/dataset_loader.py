@@ -9,11 +9,15 @@ from .data_loaders.transportation_loader import (
     load_transportation_dataset,
 )
 from .data_loaders.wsn_loader import load_wsn_data
+from .data_loaders.webkb_loader import load_webkb_data, _load_webkb_subset
 
 DATASETS = {
     "paper": load_paper_data,
     "forex": load_forex_data,
     "lastfm-1k-artist": load_lastfm_1k_artist,
+    "webkb-cornell": lambda: _load_webkb_subset("cornell"),
+    "webkb-texas":   lambda: _load_webkb_subset("texas"),
+    "webkb-wisconsin": lambda: _load_webkb_subset("wisconsin"),
     "wsn": load_wsn_data,
 }
 
