@@ -8,18 +8,17 @@ PAPER_DATA_FOLDER = pkg_resources.resource_filename(
 )
 
 
-def load_paper_data(load_only_simplicial_complex: bool = True) -> tuple:
+def load_paper_data(only_sc: bool = True) -> tuple:
     """
     Read the paper data and return the simplicial/cell complex, coordinates
     and the flow.
 
     Args:
-        load_simplicial_complex(bool): whether to return the simplicial complex or the cell complex 
+        only_sc(bool, optional): whether to return the simplicial complex or the cell complex 
     
-
     Returns:
         tuple:
-            SimplicialComplex/CellComplex: The simplicial/cell complex of the paper data.
+            SimplicialComplex or CellComplex: The simplicial/cell complex of the paper data.
             dict: The coordinates of the nodes.
             dict: The flow data of the paper data.
     """
@@ -30,23 +29,20 @@ def load_paper_data(load_only_simplicial_complex: bool = True) -> tuple:
     dest_col = "Target"
     feature_cols = ["Distance"]
 
-    if(load_only_simplicial_complex):
-        sc = read_csv(
-            filename=filename,
-            delimiter=delimiter,
-            src_col=src_col,
-            dest_col=dest_col,
-            feature_cols=feature_cols,
-        ).to_simplicial_complex()
-    else:
-        sc = read_csv(
-            filename=filename,
-            delimiter=delimiter,
-            src_col=src_col,
-            dest_col=dest_col,
-            feature_cols=feature_cols,
-            read_simplicial_complex=False
-        ).to_cell_complex()
+    builder = read_csv(
+        filename=filename,
+        delimiter=delimiter,
+        src_col=src_col,
+        dest_col=dest_col,
+        feature_cols=feature_cols,
+        only_sc=only_sc,
+    )
+
+    sc_or_cc = (
+        builder.to_simplicial_complex()
+        if only_sc
+        else builder.to_cell_complex()
+    )
 
     # read coordinates data
     filename = PAPER_DATA_FOLDER + "/coordinates.csv"
@@ -61,6 +57,6 @@ def load_paper_data(load_only_simplicial_complex: bool = True) -> tuple:
     # read flow data
     filename = PAPER_DATA_FOLDER + "/flow.csv"
     flow = pd.read_csv(filename, header=None).values[:, 0]
-    flow = {edge: flow[i] for i, edge in enumerate(sc.edges)}
+    flow = {edge: flow[i] for i, edge in enumerate(sc_or_cc.edges)}
 
-    return sc, coordinates, flow
+    return sc_or_cc, coordinates, flow

@@ -34,19 +34,20 @@ def list_datasets() -> list:
     return transportation_datasets + other_datasets
 
 
-def load_dataset(dataset: str, load_cell_complex = False) -> tuple:
+def load_dataset(dataset: str, only_sc: bool = True) -> tuple:
     """
     Load the dataset and return the simplicial complex
     and coordinates.
 
     Args:
         dataset (str): The name of the dataset.
+        only_sc (bool, optional): if true load the dataset as a simplicial complex, else as a cell complex
 
     ValueError:
         If the dataset is not found.
 
     Returns:
-        SimplicialComplex: The simplicial complex of the dataset.
+        SimplicialComplex/CellComplex: The simplicial/cell complex of the dataset.
         dict: The coordinates of the nodes. If the coordinates do not
         exist, the coordinates are generated using spring layout.
         dict: The flow data of the dataset. If the flow data does not
@@ -59,12 +60,9 @@ def load_dataset(dataset: str, load_cell_complex = False) -> tuple:
         )
 
     if dataset in DATASETS:
-        complex, coordinates, flow = DATASETS[dataset]()
+        complex, coordinates, flow = DATASETS[dataset](only_sc=only_sc)
     else:
-        complex, coordinates, flow = load_transportation_dataset(dataset=dataset)
-
-    if load_cell_complex:
-        complex = complex.to_cell_complex()
+        complex, coordinates, flow = load_transportation_dataset(dataset=dataset, only_sc=only_sc)
 
     assert complex is not None
     assert coordinates is not None

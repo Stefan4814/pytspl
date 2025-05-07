@@ -4,18 +4,22 @@ import numpy as np
 import pkg_resources
 
 from pytspl.simplicial_complex.scbuilder import SCBuilder
+from pytspl.cell_complex.ccbuilder import CCBuilder
 
 WSN_DATA_FOLDER = pkg_resources.resource_filename("pytspl", "data/wsn")
 
 
-def load_wsn_data() -> tuple:
+def load_wsn_data(only_sc: bool = True) -> tuple:
     """
     Load the water supply network data and return the simplicial complex
     and coordinates.
 
+    Args: 
+        only_sc (bool, optional): if true return a simplicial complex, else return a cell complex.
+
     Returns:
         tuple:
-            SimplicialComplex: The simplicial complex of the water supply
+            SimplicialComplex/CellComplex: The simplicial/cell complex of the water supply
             network data.
             dict: The coordinates of the nodes. If the coordinates do not
             exist, the coordinates are generated using spring layout.
@@ -41,10 +45,16 @@ def load_wsn_data() -> tuple:
 
     nodes = list(range(max(nodes) + 1))
 
-    sc = SCBuilder(nodes=nodes, edges=edges).to_simplicial_complex()
+    builder_cls = SCBuilder if only_sc else CCBuilder
+    builder = builder_cls(nodes=nodes, edges=edges)
+
+    if only_sc:
+        complex = builder.to_simplicial_complex()
+    else: 
+        complex = builder.to_cell_complex()
 
     # no coordinates
-    coordinates = sc.generate_coordinates()
+    coordinates = complex.generate_coordinates()
 
     # read flow data
     hr = hr.squeeze()
@@ -57,4 +67,4 @@ def load_wsn_data() -> tuple:
 
     y = np.concatenate((head, flow_rate))
 
-    return sc, coordinates, y
+    return complex, coordinates, y

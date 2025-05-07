@@ -19,7 +19,7 @@ class SCPlot:
         self,
         complex: CellComplex,
         coordinates: dict = None,
-        plot_sc: bool = True
+        only_sc: bool = True
     ) -> None:
         """
         Args:
@@ -30,7 +30,7 @@ class SCPlot:
         """
         self.complex = complex
         self.pos = coordinates
-        self.plot_sc = plot_sc
+        self.only_sc = only_sc
 
     def _init_axes(self, ax) -> dict:
         """
@@ -331,8 +331,8 @@ class SCPlot:
             arrows=directed,
         )
 
-        # fill the 2-simplices (triangles)
-        if self.plot_sc:
+        if self.only_sc:
+            # fill the 2-simplices (triangles)
             for i, j, k in self.complex.triangles:
                 (x0, y0) = self.pos[i]
                 (x1, y1) = self.pos[j]
@@ -347,6 +347,7 @@ class SCPlot:
                 )
                 ax.add_patch(tri)
         else:
+            #fill all the polygos
             for poly in self.complex.polygons:
                 poly_coords = [self.pos[node] for node in poly]
                 polygon = plt.Polygon(
