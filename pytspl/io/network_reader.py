@@ -17,6 +17,7 @@ import os
 
 import numpy as np
 import pandas as pd
+from typing import Union
 
 from pytspl.simplicial_complex.scbuilder import SCBuilder
 from pytspl.cell_complex.ccbuilder import CCBuilder
@@ -71,7 +72,8 @@ def read_tntp(
     skip_rows: int,
     delimiter: str = "\t",
     start_index_zero: bool = True,
-) -> SCBuilder:
+    only_sc: bool = True
+) -> Union[SCBuilder, CCBuilder]:
     """Read a tntp file and returns a graph.
 
     Args:
@@ -85,9 +87,15 @@ def read_tntp(
         line.
         start_index_zero (bool): True, if the node ids start from 0. False,
         if the node ids start from 1.
-
+        only_sc (bool, optional):
+            If True, returns an SCBuilder (simplicial complex); if False, returns a CCBuilder
+            (cell complex).
     Returns:
-        SCBuilder: SC builder object to build the simplicial complex.
+        Union[SCBuilder, CCBuilder]:
+            - If `only_sc` is True, an SCBuilder initialized with the parsed nodes, edges,
+              node_features, and edge_features.
+            - If `only_sc` is False, a CCBuilder initialized with the same inputs.
+
     """
     # Read the file
     df = pd.read_csv(filename, skiprows=skip_rows, sep=delimiter)
@@ -118,7 +126,8 @@ def read_tntp(
                 feature_cols
             ].to_dict()
 
-    return SCBuilder(
+    builder_cls = SCBuilder if only_sc else CCBuilder
+    return builder_cls(
         nodes=nodes,
         edges=edges,
         node_features=node_features,
@@ -133,7 +142,8 @@ def read_csv(
     dest_col: str,
     feature_cols: list = None,
     start_index_zero: bool = True,
-) -> SCBuilder:
+    only_sc: bool = True
+) -> Union[SCBuilder, CCBuilder]:
     """Read a csv file and returns a graph.
 
     Args:
@@ -145,9 +155,14 @@ def read_csv(
         feature_cols (list, optional): The names of the feature columns.
         Defaults to None.
         start_index_zero (bool): True, if the node ids start from 0. False,
-
+        only_sc (bool, optional):
+            If True, returns an SCBuilder (simplicial complex); if False, returns a CCBuilder
+            (cell complex).
     Returns:
-       SCBuilder: SC builder object to build the simplicial complex.
+        Union[SCBuilder, CCBuilder]:
+            - If `only_sc` is True, an SCBuilder initialized with the parsed nodes, edges,
+              node_features, and edge_features.
+            - If `only_sc` is False, a CCBuilder initialized with the same inputs.
     """
     df = pd.read_csv(filename, sep=delimiter)
 
@@ -169,57 +184,8 @@ def read_csv(
                 feature_cols
             ].to_dict()
 
-    return SCBuilder(
-        nodes=nodes,
-        edges=edges,
-        node_features=node_features,
-        edge_features=edge_features,
-    )
-
-def cc_read_csv(
-    filename: str,
-    delimiter: str,
-    src_col: str,
-    dest_col: str,
-    feature_cols: list = None,
-    start_index_zero: bool = True,
-) -> CCBuilder:
-    """Read a csv file and returns a graph.
-
-    Args:
-        filename (str): The name of the csv file.
-        delimiter (str): The delimiter used in the csv file.
-        src_col (str): The name of the column containing the source nodes.
-        dest_col (str): The name of the column containing the destination
-        nodes.
-        feature_cols (list, optional): The names of the feature columns.
-        Defaults to None.
-        start_index_zero (bool): True, if the node ids start from 0. False,
-
-    Returns:
-       SCBuilder: SC builder object to build the simplicial complex.
-    """
-    df = pd.read_csv(filename, sep=delimiter)
-
-    # get the nodes and edges
-    nodes, edges = _extract_nodes_edges(
-        df=df,
-        src_col=src_col,
-        dest_col=dest_col,
-        start_index_zero=start_index_zero,
-    )
-
-    # add features if any
-    edge_features = {}
-    node_features = {}
-
-    if len(feature_cols) > 0:
-        for i, (from_node, to_node) in enumerate(edges):
-            edge_features[(from_node, to_node)] = df.iloc[i][
-                feature_cols
-            ].to_dict()
-
-    return CCBuilder(
+    builder_cls = SCBuilder if only_sc else CCBuilder
+    return builder_cls(
         nodes=nodes,
         edges=edges,
         node_features=node_features,
@@ -257,14 +223,15 @@ def read_B2(B2_filename: str, edges: np.ndarray) -> list:
     return triangles
 
 
-def read_B1_B2(B1_filename: str, B2_filename: str) -> tuple:
+def read_B1_B2(B1_filename: str, B2_filename: str, only_sc: bool = True) -> tuple:
     """
     Read the B1 and B2 incidence matrices.
 
     Args:
         B1_filename (str): The name of the B1 incidence matrix file.
         B2_filename (str): The name of the B2 incidence matrix file.
-
+        only_sc (bool, optional): If true, returns an SCBuilder else a CCBuilder
+        
     Returns:
         SCBuilder: SC builder object to build the simplicial complex.
         list: List of triangles (2-simplices).
@@ -288,10 +255,11 @@ def read_B1_B2(B1_filename: str, B2_filename: str) -> tuple:
     nodes = list(range(max(nodes) + 1))
     edges.sort()
 
-    scbuilder = SCBuilder(nodes=nodes, edges=edges)
+    builder_cls = SCBuilder if only_sc else CCBuilder
+    complex_builder = builder_cls(nodes=nodes, edges=edges)
     triangles = read_B2(B2_filename, np.asarray(edges))
 
-    return scbuilder, triangles
+    return complex_builder, triangles
 
 
 def read_coordinates(

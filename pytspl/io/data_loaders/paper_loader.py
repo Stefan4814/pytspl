@@ -1,21 +1,24 @@
 import pandas as pd
 import pkg_resources
 
-from pytspl.io.network_reader import read_coordinates, read_csv, cc_read_csv
+from pytspl.io.network_reader import read_coordinates, read_csv
 
 PAPER_DATA_FOLDER = pkg_resources.resource_filename(
     "pytspl", "data/paper_data"
 )
 
 
-def load_paper_data() -> tuple:
+def load_paper_data(only_sc: bool = True) -> tuple:
     """
-    Read the paper data and return the simplicial complex, coordinates
+    Read the paper data and return the simplicial/cell complex, coordinates
     and the flow.
 
+    Args:
+        only_sc(bool, optional): whether to return the simplicial complex or the cell complex 
+    
     Returns:
         tuple:
-            SimplicialComplex: The simplicial complex of the paper data.
+            SimplicialComplex or CellComplex: The simplicial/cell complex of the paper data.
             dict: The coordinates of the nodes.
             dict: The flow data of the paper data.
     """
@@ -26,13 +29,20 @@ def load_paper_data() -> tuple:
     dest_col = "Target"
     feature_cols = ["Distance"]
 
-    sc = read_csv(
+    builder = read_csv(
         filename=filename,
         delimiter=delimiter,
         src_col=src_col,
         dest_col=dest_col,
         feature_cols=feature_cols,
-    ).to_simplicial_complex()
+        only_sc=only_sc,
+    )
+
+    sc_or_cc = (
+        builder.to_simplicial_complex()
+        if only_sc
+        else builder.to_cell_complex()
+    )
 
     # read coordinates data
     filename = PAPER_DATA_FOLDER + "/coordinates.csv"
@@ -47,50 +57,6 @@ def load_paper_data() -> tuple:
     # read flow data
     filename = PAPER_DATA_FOLDER + "/flow.csv"
     flow = pd.read_csv(filename, header=None).values[:, 0]
-    flow = {edge: flow[i] for i, edge in enumerate(sc.edges)}
+    flow = {edge: flow[i] for i, edge in enumerate(sc_or_cc.edges)}
 
-    return sc, coordinates, flow
-
-
-def load_paper_data_cc() -> tuple:
-    """
-    Read the paper data and return the cell complex, coordinates
-    and the flow.
-
-    Returns:
-        tuple:
-            CellComplex: The cell complex of the paper data.
-            dict: The coordinates of the nodes.
-            dict: The flow data of the paper data.
-    """
-    # read network data
-    filename = PAPER_DATA_FOLDER + "/edges.csv"
-    delimiter = " "
-    src_col = "Source"
-    dest_col = "Target"
-    feature_cols = ["Distance"]
-
-    cc = cc_read_csv(
-        filename=filename,
-        delimiter=delimiter,
-        src_col=src_col,
-        dest_col=dest_col,
-        feature_cols=feature_cols,
-    ).to_cell_complex()
-
-    # read coordinates data
-    filename = PAPER_DATA_FOLDER + "/coordinates.csv"
-    coordinates = read_coordinates(
-        filename=filename,
-        node_id_col="Id",
-        x_col="X",
-        y_col="Y",
-        delimiter=" ",
-    )
-
-    # read flow data
-    filename = PAPER_DATA_FOLDER + "/flow.csv"
-    flow = pd.read_csv(filename, header=None).values[:, 0]
-    flow = {edge: flow[i] for i, edge in enumerate(cc.edges)}
-
-    return cc, coordinates, flow
+    return sc_or_cc, coordinates, flow
