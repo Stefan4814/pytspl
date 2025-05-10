@@ -44,7 +44,7 @@ def load_flow_transportation(dataset: str, edges: list) -> pd.DataFrame:
 
     Args:
         dataset (str): The name of the dataset.
-        edges (list): The list of edges in the simplicial complex.
+        edges (list): The list of edges in the complex.
 
     Returns:
         pd.DataFrame: The flow data of the transportation dataset.
@@ -92,17 +92,18 @@ def load_flow_transportation(dataset: str, edges: list) -> pd.DataFrame:
     return flow_dict
 
 
-def load_transportation_dataset(dataset: str) -> tuple:
+def load_transportation_dataset(dataset: str, only_sc: bool = True) -> tuple:
     """
     Load the transportation dataset and return the simplicial complex
     and coordinates.
 
     Args:
         dataset (str): The name of the dataset.
+        only_sc (bool, optional): if true return a simplicial complex, else return a cell complex.
 
     Returns:
         tuple:
-            SimplicialComplex: The simplicial complex of the dataset.
+            SimplicialComplex or CellComplex: The simplicial/cell complex of the dataset.
             dict: The coordinates of the nodes. If the coordinates do not
             exist, the coordinates are generated using spring layout.
             dict: The flow data of the dataset. If the flow data does not
@@ -117,7 +118,7 @@ def load_transportation_dataset(dataset: str) -> tuple:
     coordinates_data_path = f"{DATA_FOLDER}/{dataset}/{dataset}_node.tntp"
 
     # read the network data
-    sc = read_tntp(
+    builder = read_tntp(
         filename=network_data_path,
         src_col="init_node",
         dest_col="term_node",
@@ -125,7 +126,12 @@ def load_transportation_dataset(dataset: str) -> tuple:
         delimiter="\t",
         # index starts at 1
         start_index_zero=start_index_zero,
-    ).to_simplicial_complex()
+    )
+    
+    if only_sc:
+        complex = builder.to_simplicial_complex()
+    else:
+        complex = builder.to_cell_complex()
 
     # read the coordinates data
     coordinates = read_coordinates(
@@ -139,29 +145,35 @@ def load_transportation_dataset(dataset: str) -> tuple:
 
     # generate coordinates using spring layout if coordinates are not provided
     if coordinates is None:
-        coordinates = sc.generate_coordinates()
+        coordinates = complex.generate_coordinates()
 
     # read the flow data
-    flow_dict = load_flow_transportation(dataset=dataset, edges=sc.edges)
+    flow_dict = load_flow_transportation(dataset=dataset, edges=complex.edges)
 
-    return sc, coordinates, flow_dict
+    return complex, coordinates, flow_dict
 
 
-def load_chicago_sketch() -> tuple:
+def load_chicago_sketch(only_sc: bool = True) -> tuple:
     """
     Load the Chicago sketch dataset straight from the files.
 
+    Args:
+        only_sc (bool, optional): if true return a simplicial complex, else return a cell complex.
     Returns:
         tuple:
-            SimplicialComplex: The simplicial complex of the dataset.
+            SimplicialComplex or CellComplex: The simplicial/cell complex of the dataset.
             dict: The coordinates of the nodes.
             dict: The flow data of the dataset.
     """
     B1_dataset_path = f"{CHICAGO_SKETCH_DATA_FOLDER}/B1_chicago_sketch.csv"
     B2_dataset_path = f"{CHICAGO_SKETCH_DATA_FOLDER}/B2t_chicago_sketch.csv"
 
-    scbuilder, triangles = read_B1_B2(B1_dataset_path, B2_dataset_path)
-    sc = scbuilder.to_simplicial_complex(triangles=triangles)
+    builder, triangles = read_B1_B2(B1_dataset_path, B2_dataset_path)
+
+    if only_sc:
+        complex = builder.to_simplicial_complex(triangles=triangles)
+    else:
+        complex = builder.to_cell_complex()
 
     # read coordinates
     coordinates_path = (
@@ -183,6 +195,6 @@ def load_chicago_sketch() -> tuple:
     )
     # convert to dictionary
     flow_dict = {
-        (edge[0], edge[1]): flow[i] for i, edge in enumerate(sc.edges)
+        (edge[0], edge[1]): flow[i] for i, edge in enumerate(complex.edges)
     }
-    return sc, coordinates, flow_dict
+    return complex, coordinates, flow_dict

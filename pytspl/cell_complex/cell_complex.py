@@ -127,7 +127,7 @@ class CellComplex:
     
     def incidence_matrix(self, rank: int) -> csr_matrix:
         """
-        Compute the incidence matrix of the simplicial complex.
+        Compute the incidence matrix of the cell complex.
 
         Args:
             rank (int): Rank of the incidence matrix.
@@ -268,7 +268,7 @@ class CellComplex:
        
     def print_summary(self):
         """
-        Print the summary of the simplicial complex.
+        Print the summary of the cell complex.
         """
         print(f"Num. of nodes: {len(self.nodes)}")
         print(f"Num. of edges: {len(self.edges)}")

@@ -54,13 +54,28 @@ class CCBuilder:
         dist_threshold: float = 1.5,
         polygons=None,
     ) -> CellComplex:
+        """
+        Convert the graph to a cell complex using the given condition.
+        The cell complex will also have node and edge
+        features.
+
+        Args:
+            condition (str, optional): Condition to build the simplices. Defaults to "all".
+            Options:
+            - "all": All simplices.
+            - "distance": Based on distance.
+
+            dist_col_name (str, optional): Name of the column that contains
+            the distance.
+            dist_threshold (float, optional): Distance threshold to consider
+            for simplices. Defaults to 1.5.
+
+        Returns:
+            CellComplex: Cell complex network.
+        """
         if polygons is None:
             if condition == "all":
                 polygons = self.polygons()
-            #else:
-                # triangles = self.triangles_dist_based(
-                #     dist_col_name=dist_col_name, epsilon=dist_threshold
-                # )
 
         cc = CellComplex(
             nodes=self.nodes,
