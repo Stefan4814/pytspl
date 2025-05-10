@@ -72,4 +72,37 @@ class TestCellComplex:
     def test_generate_coordinates(self, cc_mock: CellComplex):
         coords = cc_mock.generate_coordinates()
         assert isinstance(coords, dict)
-        assert all(node in coords for node in cc_mock.nodes)
+
+    def test_average_node_degree(self, cc_mock: CellComplex):
+        avg_degree = cc_mock.average_node_degree()
+        assert avg_degree == 2.5 
+
+    def test_degree_distribution(self, cc_mock: CellComplex):
+        degree_dist = cc_mock.degree_distribution()
+        assert degree_dist == {0: 3, 1: 3, 2: 2, 3: 2}
+
+    def test_average_polygon_size(self, cc_mock: CellComplex):
+        avg_size = cc_mock.average_polygon_size()
+        assert avg_size == 3.0
+
+    def test_edge_participation_count(self, cc_mock: CellComplex):
+        edge_counts = cc_mock.edge_participation_count()
+        assert edge_counts == {
+            (0, 1): 2,
+            (1, 2): 1,
+            (0, 2): 1,
+            (0, 3): 1,
+            (1, 3): 1,
+        }
+
+    def test_tocsr(self, cc_mock: CellComplex):
+        B1_csr = cc_mock.tocsr(cc_mock.B1)
+        assert isinstance(B1_csr, np.ndarray) is False
+        assert B1_csr.shape == (4, 5)
+
+    def test_print_summary(self, cc_mock: CellComplex, capsys):
+        cc_mock.print_summary()
+        captured = capsys.readouterr()
+        assert "Num. of nodes: 4" in captured.out
+        assert "Num. of edges: 5" in captured.out
+        assert "Num. of triangles: 2" in captured.out

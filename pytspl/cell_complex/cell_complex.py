@@ -239,11 +239,6 @@ class CellComplex:
             counter[v] += 1
         return dict(counter)
 
-    def polygon_size_distribution(self) -> dict:
-        from collections import Counter
-        sizes = [len(polygon) for polygon in self.polygons]
-        return dict(Counter(sizes))
-
     def average_polygon_size(self) -> float:
         if not self.polygons:
             return 0
