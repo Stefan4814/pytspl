@@ -220,7 +220,52 @@ class CellComplex:
             ) + self.upper_laplacian_matrix(rank=rank)
         else:
             raise ValueError("Rank must be between 0 and 2.")
-        
+
+
+    def average_node_degree(self) -> float:
+        from collections import Counter
+        counter = Counter()
+        for u, v in self.edges:
+            counter[u] += 1
+            counter[v] += 1
+        degrees = list(counter.values())
+        return sum(degrees) / len(degrees) if degrees else 0
+
+    def degree_distribution(self) -> dict:
+        from collections import Counter
+        counter = Counter()
+        for u, v in self.edges:
+            counter[u] += 1
+            counter[v] += 1
+        return dict(counter)
+
+    def polygon_size_distribution(self) -> dict:
+        from collections import Counter
+        sizes = [len(polygon) for polygon in self.polygons]
+        return dict(Counter(sizes))
+
+    def average_polygon_size(self) -> float:
+        if not self.polygons:
+            return 0
+        total_nodes = sum(len(p) for p in self.polygons)
+        return total_nodes / len(self.polygons)
+
+    def edge_participation_count(self) -> dict:
+        """How many polygons each edge appears in."""
+        from collections import defaultdict
+
+        edge_index = {tuple(sorted(edge)): 0 for edge in self.edges}
+        edge_counts = defaultdict(int)
+
+        for polygon in self.polygons:
+            n = len(polygon)
+            for i in range(n):
+                u, v = polygon[i], polygon[(i + 1) % n]
+                edge = tuple(sorted((u, v)))
+                edge_counts[edge] += 1
+
+        return dict(edge_counts)
+       
     def print_summary(self):
         """
         Print the summary of the simplicial complex.
