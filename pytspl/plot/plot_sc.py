@@ -12,6 +12,46 @@ from pytspl.decomposition.frequency_component import FrequencyComponent
 from pytspl.simplicial_complex import SimplicialComplex
 from pytspl.cell_complex import CellComplex
 
+from matplotlib.patches import FancyArrowPatch
+from matplotlib import transforms
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path
+from matplotlib.patches import Arc, FancyArrow
+
+def signed_area(poly_coords):
+    x = [p[0] for p in poly_coords]
+    y = [p[1] for p in poly_coords]
+    return 0.5 * sum(
+        x[i] * y[(i + 1) % len(poly_coords)] - x[(i + 1) % len(poly_coords)] * y[i]
+        for i in range(len(poly_coords))
+    )
+
+def draw_circular_arrow(ax, center, radius=0.1, angle_deg=0, direction='ccw'):
+    """Draw a circular arc with arrowhead at the end, in correct orientation."""
+    sweep_deg = 270
+    num_points = 100
+
+    if direction == 'ccw':
+        theta = np.linspace(np.deg2rad(angle_deg), np.deg2rad(angle_deg + sweep_deg), num_points)
+    else:
+        theta = np.linspace(np.deg2rad(angle_deg + sweep_deg), np.deg2rad(angle_deg), num_points)
+
+    x = center[0] + radius * np.cos(theta)
+    y = center[1] + radius * np.sin(theta)
+
+    # Draw the arc
+    ax.plot(x, y, color='black', lw=1.2)
+
+    # Draw the arrowhead at the end of the arc
+    dx = x[-1] - x[-2]
+    dy = y[-1] - y[-2]
+    ax.arrow(
+        x[-2], y[-2], dx, dy,
+        head_width=0.6 * radius, head_length=0.6 * radius,
+        fc='black', ec='black', lw=0, length_includes_head=True,
+        overhang=0.3,
+    )
+
 class SCPlot:
     """Class for plotting simplicial/cell complexes."""
 
@@ -234,6 +274,7 @@ class SCPlot:
         directed: bool = True,
         alpha: float = 0.8,
         ax=None,
+        draw_orientation: bool = False,
     ) -> None:
         """
         Draw the edges of the simplicial/cell complex.
@@ -260,6 +301,8 @@ class SCPlot:
             Defaults to 0.8.
             ax (matplotlib.axes.Axes, optional): The axes object.
             Defaults to None.
+            draw_orientation (bool, optional): Whether to draw the orientation.
+            Defaults to false.
         """
         if edge_flow:
             assert isinstance(edge_flow, dict)
@@ -331,34 +374,50 @@ class SCPlot:
             arrows=directed,
         )
 
-        if self.only_sc:
-            # fill the 2-simplices (triangles)
-            for i, j, k in self.complex.triangles:
-                (x0, y0) = self.pos[i]
-                (x1, y1) = self.pos[j]
-                (x2, y2) = self.pos[k]
-                tri = plt.Polygon(
-                    [[x0, y0], [x1, y1], [x2, y2]],
-                    edgecolor="k",
-                    facecolor=plt.cm.Blues(0.4),
-                    alpha=0.3,
-                    lw=0.5,
-                    zorder=0,
+        B2 = self.complex.compute_B2()
+        edge_index = {edge: i for i, edge in enumerate(self.complex.edges)}
+
+        for j, poly in enumerate(self.complex.polygons):
+            if self.only_sc and len(poly) != 3:
+                continue  # skip non-triangles in simplicial mode
+
+            poly_coords = [self.pos[node] for node in poly]
+            center = np.mean(np.array(poly_coords), axis=0)
+
+            polygon = plt.Polygon(
+                poly_coords,
+                edgecolor="k",
+                facecolor=plt.cm.Blues(0.4),
+                alpha=0.3,
+                lw=0.5,
+                zorder=0,
+            )
+
+            ax.add_patch(polygon)
+            
+            area = signed_area(poly_coords)
+            direction = 'ccw' if area > 0 else 'cw'
+
+            if draw_orientation:
+                if self.only_sc and len(poly) != 3:
+                    continue  # skip non-triangles if only_sc is True
+
+                center_x = np.mean([p[0] for p in poly_coords])
+                center_y = np.mean([p[1] for p in poly_coords])
+                center = (center_x, center_y)
+
+                # Optional: scale radius based on polygon size
+                bbox = polygon.get_path().get_extents()
+                approx_radius = 0.15 * min(bbox.width, bbox.height)
+
+                draw_circular_arrow(
+                    ax,
+                    center=center,
+                    radius=approx_radius,
+                    angle_deg=60,
+                    direction=direction
                 )
-                ax.add_patch(tri)
-        else:
-            #fill all the polygos
-            for poly in self.complex.polygons:
-                poly_coords = [self.pos[node] for node in poly]
-                polygon = plt.Polygon(
-                    poly_coords,
-                    edgecolor="k",
-                    facecolor=plt.cm.Blues(0.4),
-                    alpha=0.3,
-                    lw=0.5,
-                    zorder=0,
-                )
-                ax.add_patch(polygon)
+
 
     def _calculate_edge_label_position(
         self, src: tuple, dest: tuple, offset: float
@@ -473,6 +532,7 @@ class SCPlot:
         directed: bool = True,
         with_labels: bool = True,
         ax=None,
+        draw_orientation: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -489,6 +549,8 @@ class SCPlot:
             Defaults to True.
             ax (matplotlib.axes.Axes, optional): The axes object.
             Defaults to None.
+            draw_orientation(bool, optional): Whether to draw the orientation of a polygon or not.
+            Defaults to False.
 
         Node kwargs:
             node_size (int, optional): The size of the nodes.
@@ -597,6 +659,7 @@ class SCPlot:
             edge_flow=edge_flow,
             directed=directed,
             ax=ax,
+            draw_orientation=draw_orientation,
             **edge_kwargs,
         )
 
