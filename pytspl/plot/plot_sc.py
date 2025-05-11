@@ -45,11 +45,16 @@ def draw_circular_arrow(ax, center, radius=0.1, angle_deg=0, direction='ccw'):
     # Draw the arrowhead at the end of the arc
     dx = x[-1] - x[-2]
     dy = y[-1] - y[-2]
-    ax.arrow(
-        x[-2], y[-2], dx, dy,
-        head_width=0.6 * radius, head_length=0.6 * radius,
-        fc='black', ec='black', lw=0, length_includes_head=True,
-        overhang=0.3,
+    ax.annotate(
+        '',
+        xy=(x[-1], y[-1]),
+        xytext=(x[-3], y[-3]),
+        arrowprops=dict(
+            arrowstyle='->',
+            color='black',
+            lw=1.2,
+            shrinkA=0, shrinkB=0,
+        )
     )
 
 class SCPlot:
