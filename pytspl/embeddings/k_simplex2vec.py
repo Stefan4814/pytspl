@@ -60,8 +60,9 @@ def _k_cell_adjacency(
         if m == 0:
             return csr_matrix((0, 0), dtype=float)
 
-        B1 = cc.B1  # shape: (num_nodes, num_edges)
-        B2 = cc.B2  # shape: (num_edges, num_polygons)
+        # Absolute values remove orientation so adjacency counts remain non-negative
+        B1 = np.abs(cc.B1)  # shape: (num_nodes, num_edges)
+        B2 = np.abs(cc.B2)  # shape: (num_edges, num_polygons)
 
         # lower adjacency: edges sharing a node 
         # (i,j) entry is number of common incident nodes (0, 1, or 2)
@@ -98,7 +99,7 @@ def _k_cell_adjacency(
         if p == 0:
             return csr_matrix((0, 0), dtype=float)
 
-        B2 = cc.B2  # shape: (num_edges, num_polygons)
+        B2 = np.abs(cc.B2)  # shape: (num_edges, num_polygons)
 
         # lower adjacency for polygons: polygons sharing an edge
         A_down = B2.T @ B2 
