@@ -25,3 +25,4 @@ from . import hogde_gp  # noqa: F401
 from . import io  # noqa: F401
 from . import plot  # noqa: F401
 from . import simplicial_complex  # noqa: F401
+from . import cell_complex

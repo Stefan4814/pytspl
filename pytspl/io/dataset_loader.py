@@ -9,11 +9,15 @@ from .data_loaders.transportation_loader import (
     load_transportation_dataset,
 )
 from .data_loaders.wsn_loader import load_wsn_data
+from .data_loaders.webkb_loader import load_webkb_data, _load_webkb_subset
 
 DATASETS = {
     "paper": load_paper_data,
     "forex": load_forex_data,
     "lastfm-1k-artist": load_lastfm_1k_artist,
+    "webkb-cornell": lambda: _load_webkb_subset("cornell"),
+    "webkb-texas":   lambda: _load_webkb_subset("texas"),
+    "webkb-wisconsin": lambda: _load_webkb_subset("wisconsin"),
     "wsn": load_wsn_data,
 }
 
@@ -30,19 +34,20 @@ def list_datasets() -> list:
     return transportation_datasets + other_datasets
 
 
-def load_dataset(dataset: str) -> tuple:
+def load_dataset(dataset: str, only_sc: bool = True) -> tuple:
     """
     Load the dataset and return the simplicial complex
     and coordinates.
 
     Args:
         dataset (str): The name of the dataset.
+        only_sc (bool, optional): if true load the dataset as a simplicial complex, else as a cell complex
 
     ValueError:
         If the dataset is not found.
 
     Returns:
-        SimplicialComplex: The simplicial complex of the dataset.
+        SimplicialComplex/CellComplex: The simplicial/cell complex of the dataset.
         dict: The coordinates of the nodes. If the coordinates do not
         exist, the coordinates are generated using spring layout.
         dict: The flow data of the dataset. If the flow data does not
@@ -55,20 +60,22 @@ def load_dataset(dataset: str) -> tuple:
         )
 
     if dataset in DATASETS:
-        sc, coordinates, flow = DATASETS[dataset]()
+        complex, coordinates, flow = DATASETS[dataset](only_sc=only_sc)
     else:
-        sc, coordinates, flow = load_transportation_dataset(dataset=dataset)
+        complex, coordinates, flow = load_transportation_dataset(dataset=dataset, only_sc=only_sc)
 
-    assert sc is not None
+    assert complex is not None
     assert coordinates is not None
     assert flow is not None
 
+
+
     # each node should have a coordinate
-    assert len(sc.nodes) == len(coordinates)
+    assert len(complex.nodes) == len(coordinates)
 
     # print summary of the dataset
-    sc.print_summary()
+    complex.print_summary()
     print(f"Coordinates: {len(coordinates)}")
     print(f"Flow: {len(flow)}")
 
-    return sc, coordinates, flow
+    return complex, coordinates, flow

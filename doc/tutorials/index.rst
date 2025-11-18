@@ -16,6 +16,4 @@ More tutorials will be added in the future.
     decomposition
     intro_to_filters
     hodge_gp
-
-
-    
+    cell_complex

@@ -5,7 +5,6 @@ import pytest
 from pytspl.io.dataset_loader import list_datasets, load_dataset
 from pytspl.simplicial_complex import SimplicialComplex
 
-
 class TestDatasetLoader:
 
     def test_list_datasets(self):

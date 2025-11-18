@@ -71,7 +71,7 @@ for one and two steps.
     >>> from pytspl import SCPlot
     >>>
     >>> # create a SC plot
-    >>> scplot = SCPlot(simplicial_complex=sc, coordinates=coordinates)
+    >>> scplot = SCPlot(complex=sc, coordinates=coordinates)
     >>> fig, axs = plt.subplots(1, 3, figsize=(15, 5))
     >>>
     >>> # plot indicator flow f

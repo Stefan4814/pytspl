@@ -10,26 +10,72 @@ import numpy as np
 
 from pytspl.decomposition.frequency_component import FrequencyComponent
 from pytspl.simplicial_complex import SimplicialComplex
+from pytspl.cell_complex import CellComplex
 
+from matplotlib.patches import FancyArrowPatch
+from matplotlib import transforms
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path
+from matplotlib.patches import Arc, FancyArrow
+
+def signed_area(poly_coords):
+    x = [p[0] for p in poly_coords]
+    y = [p[1] for p in poly_coords]
+    return 0.5 * sum(
+        x[i] * y[(i + 1) % len(poly_coords)] - x[(i + 1) % len(poly_coords)] * y[i]
+        for i in range(len(poly_coords))
+    )
+
+def draw_circular_arrow(ax, center, radius=0.1, angle_deg=0, direction='ccw'):
+    """Draw a circular arc with arrowhead at the end, in correct orientation."""
+    sweep_deg = 270
+    num_points = 100
+
+    if direction == 'ccw':
+        theta = np.linspace(np.deg2rad(angle_deg), np.deg2rad(angle_deg + sweep_deg), num_points)
+    else:
+        theta = np.linspace(np.deg2rad(angle_deg + sweep_deg), np.deg2rad(angle_deg), num_points)
+
+    x = center[0] + radius * np.cos(theta)
+    y = center[1] + radius * np.sin(theta)
+
+    # Draw the arc
+    ax.plot(x, y, color='black', lw=1.2)
+
+    # Draw the arrowhead at the end of the arc
+    dx = x[-1] - x[-2]
+    dy = y[-1] - y[-2]
+    ax.annotate(
+        '',
+        xy=(x[-1], y[-1]),
+        xytext=(x[-3], y[-3]),
+        arrowprops=dict(
+            arrowstyle='->',
+            color='black',
+            lw=1.2,
+            shrinkA=0, shrinkB=0,
+        )
+    )
 
 class SCPlot:
-    """Class for plotting simplicial complexes."""
+    """Class for plotting simplicial/cell complexes."""
 
     def __init__(
         self,
-        simplicial_complex: SimplicialComplex,
+        complex: CellComplex,
         coordinates: dict = None,
+        only_sc: bool = True
     ) -> None:
         """
         Args:
-            simplicial_complex (SimplicialComplex): The simplicial
+            complex (CellComplex): The cell complex
             complex network object.
-            coordinates (dict, optional): Dict of positions
-            [node_id : (x, y)] is used for placing the 0-simplices. The
-            standard nx spring layer is used otherwise.
+            coordinates (dict): Dict of positions
+            plot_sc (bool): whether to plot only simplicial complexes or all the cell complexes
         """
-        self.sc = simplicial_complex
+        self.complex = complex
         self.pos = coordinates
+        self.only_sc = only_sc
 
     def _init_axes(self, ax) -> dict:
         """
@@ -47,7 +93,7 @@ class SCPlot:
         if self.pos is None:
             # use spring layout if no coordinates are provided
             G = nx.Graph()
-            G.add_edges_from(self.sc.edges)
+            G.add_edges_from(self.complex.edges)
             layout = nx.spring_layout(G)
             self.pos = layout
             # set the axis limits to a square
@@ -84,7 +130,7 @@ class SCPlot:
         Returns:
             dict: The edge flow dictionary.
         """
-        return dict(zip(self.sc.edges, flow))
+        return dict(zip(self.complex.edges, flow))
 
     def draw_sc_nodes(
         self,
@@ -103,7 +149,7 @@ class SCPlot:
         ax=None,
     ) -> None:
         """
-        Draw the nodes of the simplicial complex.
+        Draw the nodes of the simplicial/cell_complex complex.
 
         Args:
             node_size (int, optional): The size of the nodes.
@@ -158,7 +204,7 @@ class SCPlot:
             fig = ax.get_figure()
             fig.colorbar(mappable=color_map, ax=ax)
 
-        nodes = self.sc.nodes
+        nodes = self.complex.nodes
 
         node_collection = ax.scatter(
             [self.pos[node_id][0] for node_id in nodes],
@@ -207,7 +253,7 @@ class SCPlot:
             alpha (float, optional): The transparency of the node labels.
             Defaults to None.
         """
-        for node_id in self.sc.nodes:
+        for node_id in self.complex.nodes:
             (x, y) = self.pos[node_id]
             plt.text(
                 x,
@@ -233,9 +279,10 @@ class SCPlot:
         directed: bool = True,
         alpha: float = 0.8,
         ax=None,
+        draw_orientation: bool = False,
     ) -> None:
         """
-        Draw the edges of the simplicial complex.
+        Draw the edges of the simplicial/cell complex.
 
         Args:
             edge_flow (dict, optional): The flow of the edges.
@@ -259,6 +306,8 @@ class SCPlot:
             Defaults to 0.8.
             ax (matplotlib.axes.Axes, optional): The axes object.
             Defaults to None.
+            draw_orientation (bool, optional): Whether to draw the orientation.
+            Defaults to false.
         """
         if edge_flow:
             assert isinstance(edge_flow, dict)
@@ -276,7 +325,7 @@ class SCPlot:
             edges = list(edge_flow.keys())
             edge_color = list(edge_flow.values())
         else:
-            edges = self.sc.edges
+            edges = self.complex.edges
 
         # create a graph
         graph = nx.DiGraph()
@@ -330,20 +379,50 @@ class SCPlot:
             arrows=directed,
         )
 
-        # fill the 2-simplices (triangles)
-        for i, j, k in self.sc.triangles:
-            (x0, y0) = self.pos[i]
-            (x1, y1) = self.pos[j]
-            (x2, y2) = self.pos[k]
-            tri = plt.Polygon(
-                [[x0, y0], [x1, y1], [x2, y2]],
+        B2 = self.complex.compute_B2()
+        edge_index = {edge: i for i, edge in enumerate(self.complex.edges)}
+
+        for j, poly in enumerate(self.complex.polygons):
+            if self.only_sc and len(poly) != 3:
+                continue  # skip non-triangles in simplicial mode
+
+            poly_coords = [self.pos[node] for node in poly]
+            center = np.mean(np.array(poly_coords), axis=0)
+
+            polygon = plt.Polygon(
+                poly_coords,
                 edgecolor="k",
                 facecolor=plt.cm.Blues(0.4),
                 alpha=0.3,
                 lw=0.5,
                 zorder=0,
             )
-            ax.add_patch(tri)
+
+            ax.add_patch(polygon)
+            
+            area = signed_area(poly_coords)
+            direction = 'ccw' if area > 0 else 'cw'
+
+            if draw_orientation:
+                if self.only_sc and len(poly) != 3:
+                    continue  # skip non-triangles if only_sc is True
+
+                center_x = np.mean([p[0] for p in poly_coords])
+                center_y = np.mean([p[1] for p in poly_coords])
+                center = (center_x, center_y)
+
+                # Optional: scale radius based on polygon size
+                bbox = polygon.get_path().get_extents()
+                approx_radius = 0.15 * min(bbox.width, bbox.height)
+
+                draw_circular_arrow(
+                    ax,
+                    center=center,
+                    radius=approx_radius,
+                    angle_deg=60,
+                    direction=direction
+                )
+
 
     def _calculate_edge_label_position(
         self, src: tuple, dest: tuple, offset: float
@@ -458,6 +537,7 @@ class SCPlot:
         directed: bool = True,
         with_labels: bool = True,
         ax=None,
+        draw_orientation: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -474,6 +554,8 @@ class SCPlot:
             Defaults to True.
             ax (matplotlib.axes.Axes, optional): The axes object.
             Defaults to None.
+            draw_orientation(bool, optional): Whether to draw the orientation of a polygon or not.
+            Defaults to False.
 
         Node kwargs:
             node_size (int, optional): The size of the nodes.
@@ -582,6 +664,7 @@ class SCPlot:
             edge_flow=edge_flow,
             directed=directed,
             ax=ax,
+            draw_orientation=draw_orientation,
             **edge_kwargs,
         )
 
@@ -620,7 +703,7 @@ class SCPlot:
         fig = plt.figure(figsize=figsize)
 
         if component is not None:
-            component_flow = self.sc.get_component_flow(
+            component_flow = self.complex.get_component_flow(
                 flow=flow,
                 component=component,
                 round_fig=round_fig,
@@ -637,21 +720,21 @@ class SCPlot:
         # if no component is specified, draw all three components
         else:
 
-            f_g = self.sc.get_component_flow(
+            f_g = self.complex.get_component_flow(
                 flow=flow,
                 component=FrequencyComponent.GRADIENT.value,
                 round_fig=round_fig,
                 round_sig_fig=round_sig_fig,
             )
 
-            f_c = self.sc.get_component_flow(
+            f_c = self.complex.get_component_flow(
                 flow=flow,
                 component=FrequencyComponent.CURL.value,
                 round_fig=round_fig,
                 round_sig_fig=round_sig_fig,
             )
 
-            f_h = self.sc.get_component_flow(
+            f_h = self.complex.get_component_flow(
                 flow=flow,
                 component=FrequencyComponent.HARMONIC.value,
                 round_fig=round_fig,
@@ -706,7 +789,7 @@ class SCPlot:
         """
         viz_per_row = 3
 
-        U, eigenvals = self.sc.get_component_eigenpair(component=component)
+        U, eigenvals = self.complex.get_component_eigenpair(component=component)
 
         # if no eigenvector indices are provided, draw all eigenvectors
         if len(eigenvector_indices) == 0:

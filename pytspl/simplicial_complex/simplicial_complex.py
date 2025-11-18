@@ -6,6 +6,9 @@ from typing import Hashable, Iterable
 import numpy as np
 from scipy.sparse import csr_matrix
 
+from pytspl.cell_complex import CellComplex
+from pytspl.cell_complex.ccbuilder import CCBuilder
+
 from pytspl.decomposition.eigendecomposition import (
     get_curl,
     get_curl_eigenpair,
@@ -22,7 +25,7 @@ from pytspl.decomposition.hodge_decomposition import (
 )
 
 
-class SimplicialComplex:
+class SimplicialComplex(CellComplex):
     """Data structure class for a simplicial complex."""
 
     def __init__(
@@ -45,16 +48,17 @@ class SimplicialComplex:
             edge_features (dict, optional): Dict of edge features.
             Defaults to {}.
         """
-        self.nodes = nodes
-        self.edges = edges
+        assert all(len(t) == 3 for t in triangles), "Triangles must have exactly 3 vertices"
+
+        super().__init__(
+            nodes=nodes,
+            edges=edges,
+            polygons=triangles,
+            node_features=node_features,
+            edge_features=edge_features
+        )
         self.triangles = triangles
-
-        self.node_features = node_features
-        self.edge_features = edge_features
-
-        self.B1 = self.edges_to_B1(edges, len(nodes))
-        self.B2 = self.triangles_to_B2(triangles, edges)
-
+        
     def print_summary(self):
         """
         Print the summary of the simplicial complex.
@@ -65,57 +69,57 @@ class SimplicialComplex:
         print(f"Shape: {self.shape}")
         print(f"Max Dimension: {self.max_dim}")
 
-    def edges_to_B1(self, edges: list, num_nodes: int) -> np.ndarray:
-        """
-        Create the B1 matrix (node-edge) from the edges.
+    # def edges_to_B1(self, edges: list, num_nodes: int) -> np.ndarray:
+    #     """
+    #     Create the B1 matrix (node-edge) from the edges.
 
-        Args:
-            edges (list): List of edges.
-            num_nodes (int): Number of nodes.
+    #     Args:
+    #         edges (list): List of edges.
+    #         num_nodes (int): Number of nodes.
 
-        Returns:
-            np.ndarray: B1 matrix.
-        """
-        B1 = np.zeros((num_nodes, len(edges)))
+    #     Returns:
+    #         np.ndarray: B1 matrix.
+    #     """
+    #     B1 = np.zeros((num_nodes, len(edges)))
 
-        for j, edge in enumerate(edges):
-            from_node, to_node = edge
-            B1[from_node, j] = -1
-            B1[to_node, j] = 1
-        return B1
+    #     for j, edge in enumerate(edges):
+    #         from_node, to_node = edge
+    #         B1[from_node, j] = -1
+    #         B1[to_node, j] = 1
+    #     return B1
 
-    def triangles_to_B2(self, triangles: list, edges: list) -> np.ndarray:
-        """
-        Create the B2 matrix (edge-triangle) from the triangles.
+    # def triangles_to_B2(self, triangles: list, edges: list) -> np.ndarray:
+    #     """
+    #     Create the B2 matrix (edge-triangle) from the triangles.
 
-        Args:
-            triangles (list): List of triangles.
-            edges (list): List of edges.
+    #     Args:
+    #         triangles (list): List of triangles.
+    #         edges (list): List of edges.
 
-        Returns:
-            np.ndarray: B2 matrix.
-        """
-        B2 = np.zeros((len(edges), len(triangles)))
-        for j, triangle in enumerate(triangles):
-            a, b, c = triangle
-            try:
-                index_a = edges.index((a, b))
-            except ValueError:
-                index_a = edges.index((b, a))
-            try:
-                index_b = edges.index((b, c))
-            except ValueError:
-                index_b = edges.index((c, b))
-            try:
-                index_c = edges.index((a, c))
-            except ValueError:
-                index_c = edges.index((c, a))
+    #     Returns:
+    #         np.ndarray: B2 matrix.
+    #     """
+    #     B2 = np.zeros((len(edges), len(triangles)))
+    #     for j, triangle in enumerate(triangles):
+    #         a, b, c = triangle
+    #         try:
+    #             index_a = edges.index((a, b))
+    #         except ValueError:
+    #             index_a = edges.index((b, a))
+    #         try:
+    #             index_b = edges.index((b, c))
+    #         except ValueError:
+    #             index_b = edges.index((c, b))
+    #         try:
+    #             index_c = edges.index((a, c))
+    #         except ValueError:
+    #             index_c = edges.index((c, a))
 
-            B2[index_a, j] = 1
-            B2[index_c, j] = -1
-            B2[index_b, j] = 1
+    #         B2[index_a, j] = 1
+    #         B2[index_c, j] = -1
+    #         B2[index_b, j] = 1
 
-        return B2
+    #     return B2
 
     def generate_coordinates(self) -> dict:
         """
@@ -213,38 +217,38 @@ class SimplicialComplex:
         """Identity matrix of the simplicial complex."""
         return np.eye(len(self.nodes))
 
-    def tocsr(self, matrix: np.ndarray) -> csr_matrix:
-        """
-        Convert a numpy array to a csr_matrix.
+    # def tocsr(self, matrix: np.ndarray) -> csr_matrix:
+    #     """
+    #     Convert a numpy array to a csr_matrix.
 
-        Args:
-            matrix (np.ndarray): Numpy array to convert.
+    #     Args:
+    #         matrix (np.ndarray): Numpy array to convert.
 
-        Returns:
-            csr_matrix: Compressed Sparse Row matrix.
-        """
-        return csr_matrix(matrix, dtype=float)
+    #     Returns:
+    #         csr_matrix: Compressed Sparse Row matrix.
+    #     """
+    #     return csr_matrix(matrix, dtype=float)
 
-    def incidence_matrix(self, rank: int) -> csr_matrix:
-        """
-        Compute the incidence matrix of the simplicial complex.
+    # def incidence_matrix(self, rank: int) -> csr_matrix:
+    #     """
+    #     Compute the incidence matrix of the simplicial complex.
 
-        Args:
-            rank (int): Rank of the incidence matrix.
+    #     Args:
+    #         rank (int): Rank of the incidence matrix.
 
-        Returns:
-            csr_matrix: Incidence matrix of the simplicial complex.
-        """
-        if rank == 0:
-            return np.ones(len(self.nodes), dtype=float)
-        elif rank == 1:
-            return self.tocsr(self.B1)
-        elif rank == 2:
-            return self.tocsr(self.B2)
-        else:
-            raise ValueError(
-                "Rank cannot be larger than the dimension of the complex."
-            )
+    #     Returns:
+    #         csr_matrix: Incidence matrix of the simplicial complex.
+    #     """
+    #     if rank == 0:
+    #         return np.ones(len(self.nodes), dtype=float)
+    #     elif rank == 1:
+    #         return self.tocsr(self.B1)
+    #     elif rank == 2:
+    #         return self.tocsr(self.B2)
+    #     else:
+    #         raise ValueError(
+    #             "Rank cannot be larger than the dimension of the complex."
+    #         )
 
     def adjacency_matrix(self) -> csr_matrix:
         """
@@ -264,80 +268,80 @@ class SimplicialComplex:
         adjacency_mat = csr_matrix(adjacency_mat)
         return adjacency_mat
 
-    def laplacian_matrix(self) -> csr_matrix:
-        """
-        Compute the Laplacian matrix of the simplicial complex.
+    # def laplacian_matrix(self) -> csr_matrix:
+    #     """
+    #     Compute the Laplacian matrix of the simplicial complex.
 
-        Returns:
-            csr_matrix: Laplacian matrix of the simplicial complex.
-        """
-        B1 = self.incidence_matrix(rank=1)
-        return B1 @ B1.T
+    #     Returns:
+    #         csr_matrix: Laplacian matrix of the simplicial complex.
+    #     """
+    #     B1 = self.incidence_matrix(rank=1)
+    #     return B1 @ B1.T
 
-    def lower_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
-        """
-        Compute the lower Laplacian matrix of the simplicial complex.
+    # def lower_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
+    #     """
+    #     Compute the lower Laplacian matrix of the simplicial complex.
 
-        Args:
-            rank (int): Rank of the lower Laplacian matrix.
+    #     Args:
+    #         rank (int): Rank of the lower Laplacian matrix.
 
-        ValueError:
-            If the rank is not 1 or 2.
+    #     ValueError:
+    #         If the rank is not 1 or 2.
 
-        Returns:
-            csr_matrix: Lower Laplacian matrix of the simplicial complex.
-        """
-        if rank == 1:
-            B1 = self.incidence_matrix(rank=1)
-            return B1.T @ B1
-        elif rank == 2:
-            B2 = self.incidence_matrix(rank=2)
-            return B2.T @ B2
-        else:
-            raise ValueError("Rank must be either 1 or 2.")
+    #     Returns:
+    #         csr_matrix: Lower Laplacian matrix of the simplicial complex.
+    #     """
+    #     if rank == 1:
+    #         B1 = self.incidence_matrix(rank=1)
+    #         return B1.T @ B1
+    #     elif rank == 2:
+    #         B2 = self.incidence_matrix(rank=2)
+    #         return B2.T @ B2
+    #     else:
+    #         raise ValueError("Rank must be either 1 or 2.")
 
-    def upper_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
-        """
-        Compute the upper Laplacian matrix of the simplicial complex.
+    # def upper_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
+    #     """
+    #     Compute the upper Laplacian matrix of the simplicial complex.
 
-        Args:
-            rank (int): Rank of the upper Laplacian matrix.
+    #     Args:
+    #         rank (int): Rank of the upper Laplacian matrix.
 
-        ValueError:
-            If the rank is not 0 or 1.
+    #     ValueError:
+    #         If the rank is not 0 or 1.
 
-        Returns:
-            csr_matrix: Upper Laplacian matrix of the simplicial complex.
-        """
-        if rank == 0:
-            return self.laplacian_matrix()
-        elif rank == 1:
-            B2 = self.incidence_matrix(rank=2)
-            return B2 @ B2.T
-        else:
-            raise ValueError("Rank must be either 0 or 1.")
+    #     Returns:
+    #         csr_matrix: Upper Laplacian matrix of the simplicial complex.
+    #     """
+    #     if rank == 0:
+    #         return self.laplacian_matrix()
+    #     elif rank == 1:
+    #         B2 = self.incidence_matrix(rank=2)
+    #         return B2 @ B2.T
+    #     else:
+    #         raise ValueError("Rank must be either 0 or 1.")
 
-    def hodge_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
-        """
-        Compute the Hodge Laplacian matrix of the simplicial complex.
+    # def hodge_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
+    #     """
+    #     Compute the Hodge Laplacian matrix of the simplicial complex.
 
-        Args:
-            rank (int): Rank of the Hodge Laplacian matrix.
+    #     Args:
+    #         rank (int): Rank of the Hodge Laplacian matrix.
 
-        ValueError:
-            If the rank is not 0, 1, or 2.
+    #     ValueError:
+    #         If the rank is not 0, 1, or 2.
 
-        Returns:
-            csr_matrix: Hodge Laplacian matrix of the simplicial complex.
-        """
-        if rank == 0:
-            return self.laplacian_matrix()
-        elif rank == 1:
-            return self.lower_laplacian_matrix(
-                rank=rank
-            ) + self.upper_laplacian_matrix(rank=rank)
-        else:
-            raise ValueError("Rank must be between 0 and 2.")
+    #     Returns:
+    #         csr_matrix: Hodge Laplacian matrix of the simplicial complex.
+    #     """
+    #     if rank == 0:
+    #         return self.laplacian_matrix()
+    #     elif rank == 1:
+    #         return self.lower_laplacian_matrix(
+    #             rank=rank
+    #         ) + self.upper_laplacian_matrix(rank=rank)
+    #     else:
+    #         raise ValueError("Rank must be between 0 and 2.")
 
     def apply_lower_shifting(
         self, flow: np.ndarray, steps: int = 1
@@ -565,3 +569,21 @@ class SimplicialComplex:
                 "Invalid component. Choose from 'harmonic',"
                 + "'curl', or 'gradient'."
             )
+        
+    def to_cell_complex(self) -> CellComplex:
+        """
+        Convert the simplicial complex into a cell complex by detecting larger polygons.
+
+        Returns:
+            CellComplex: The resulting cell complex.
+        """
+        # Use CCBuilder to find larger cycles (polygons)
+        cc_builder = CCBuilder(
+            nodes=self.nodes,
+            edges=self.edges,
+            node_features=self.node_features,
+            edge_features=self.edge_features
+        )
+
+        # Create a CellComplex with these polygons
+        return cc_builder.to_cell_complex()

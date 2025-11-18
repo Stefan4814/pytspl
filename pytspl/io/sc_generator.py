@@ -3,11 +3,11 @@
 import networkx as nx
 
 from pytspl.simplicial_complex.scbuilder import SCBuilder
-
+from pytspl.simplicial_complex.simplicial_complex import SimplicialComplex
 
 def generate_random_simplicial_complex(
     num_of_nodes: int, p: float, dist_threshold: float, seed: int
-) -> tuple:
+) -> tuple[SimplicialComplex, dict]:
     """
     Generate a random simplicial complex.
 

@@ -8,12 +8,12 @@ from pytspl.simplicial_complex import SimplicialComplex
 
 @pytest.fixture
 def sc_plot(sc_mock: SimplicialComplex, coordinates_mock: np.ndarray):
-    yield SCPlot(simplicial_complex=sc_mock, coordinates=coordinates_mock)
+    yield SCPlot(complex=sc_mock, coordinates=coordinates_mock)
 
 
 @pytest.fixture
 def sc_plot_no_coords(sc_mock: SimplicialComplex):
-    yield SCPlot(simplicial_complex=sc_mock, coordinates=None)
+    yield SCPlot(complex=sc_mock, coordinates=None)
 
 
 class TestSCPlot:
@@ -61,7 +61,7 @@ class TestSCPlot:
         edge_flow = sc_plot.create_edge_flow(flow=f0_mock)
         # Check if the edge flow dictionary is created correctly
         assert isinstance(edge_flow, dict)
-        assert len(edge_flow) == len(sc_plot.sc.edges)
+        assert len(edge_flow) == len(sc_plot.complex.edges)
 
     def test_draw_sc_nodes(self, sc_plot: SCPlot):
         # Set up the plot
@@ -88,7 +88,7 @@ class TestSCPlot:
         assert ax.get_xlim() == (-1.1, 1.1)
         assert ax.get_ylim() == (-2.625, 0.125)
         assert len(ax.collections) == 1
-        assert len(ax.texts) == len(sc_plot.sc.nodes)
+        assert len(ax.texts) == len(sc_plot.complex.nodes)
 
         # Close the plot
         plt.close(fig)
@@ -106,7 +106,7 @@ class TestSCPlot:
         )
 
         # Check if the labels are correctly drawn
-        for node_id in sc_plot.sc.nodes:
+        for node_id in sc_plot.complex.nodes:
             (x, y) = sc_plot.pos[node_id]
             text = ax.texts[node_id]
             assert text.get_text() == str(node_id)

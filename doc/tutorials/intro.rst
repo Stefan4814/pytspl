@@ -76,7 +76,7 @@ please refer to the API documentation.
     >>> fig, ax = plt.subplots(figsize=(4, 5))
     >>>
     >>> sc, coordinates, flow = load_dataset("paper")    
-    >>> scplot = SCPlot(simplicial_complex=sc, coordinates=coordinates)
+    >>> scplot = SCPlot(complex=sc, coordinates=coordinates)
     >>> scplot.draw_network(ax=ax)
 
 
