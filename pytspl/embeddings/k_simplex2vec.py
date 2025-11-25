@@ -351,7 +351,8 @@ def Embedding(
         workers=1,
         epochs=epochs,
     )
-    model.save(filename)
+    if filename is not None:
+        model.save(filename)
     return model
 
 def _num_k_cells(cc: CellComplex, k: int) -> int:
@@ -427,8 +428,8 @@ def cell2vec(
     )
 
     # Train word2vec
-    if model_filename is None:
-        model_filename = f"k-simplex2vec_k{k}.model"
+    # if model_filename is None:
+    #     model_filename = f"k-simplex2vec_k{k}.model"
 
     model = Embedding(
         walks=walks,
