@@ -15,9 +15,9 @@ DATASETS = {
     "paper": load_paper_data,
     "forex": load_forex_data,
     "lastfm-1k-artist": load_lastfm_1k_artist,
-    "webkb-cornell": lambda: _load_webkb_subset("cornell"),
-    "webkb-texas":   lambda: _load_webkb_subset("texas"),
-    "webkb-wisconsin": lambda: _load_webkb_subset("wisconsin"),
+    "webkb-cornell": lambda only_sc=True: _load_webkb_subset("cornell", only_sc=only_sc),
+    "webkb-texas":   lambda only_sc=True: _load_webkb_subset("texas", only_sc=only_sc),
+    "webkb-wisconsin": lambda only_sc=True: _load_webkb_subset("wisconsin", only_sc=only_sc),
     "wsn": load_wsn_data,
 }
 

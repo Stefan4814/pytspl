@@ -60,8 +60,9 @@ def _k_cell_adjacency(
         if m == 0:
             return csr_matrix((0, 0), dtype=float)
 
-        B1 = cc.B1  # shape: (num_nodes, num_edges)
-        B2 = cc.B2  # shape: (num_edges, num_polygons)
+        # Absolute values remove orientation so adjacency counts remain non-negative
+        B1 = np.abs(cc.B1)  # shape: (num_nodes, num_edges)
+        B2 = np.abs(cc.B2)  # shape: (num_edges, num_polygons)
 
         # lower adjacency: edges sharing a node 
         # (i,j) entry is number of common incident nodes (0, 1, or 2)
@@ -98,7 +99,7 @@ def _k_cell_adjacency(
         if p == 0:
             return csr_matrix((0, 0), dtype=float)
 
-        B2 = cc.B2  # shape: (num_edges, num_polygons)
+        B2 = np.abs(cc.B2)  # shape: (num_edges, num_polygons)
 
         # lower adjacency for polygons: polygons sharing an edge
         A_down = B2.T @ B2 
@@ -350,7 +351,8 @@ def Embedding(
         workers=1,
         epochs=epochs,
     )
-    model.save(filename)
+    if filename is not None:
+        model.save(filename)
     return model
 
 def _num_k_cells(cc: CellComplex, k: int) -> int:
@@ -426,8 +428,8 @@ def cell2vec(
     )
 
     # Train word2vec
-    if model_filename is None:
-        model_filename = f"k-simplex2vec_k{k}.model"
+    # if model_filename is None:
+    #     model_filename = f"k-simplex2vec_k{k}.model"
 
     model = Embedding(
         walks=walks,
