@@ -38,15 +38,35 @@ class SCBuilder:
         Get a list of triangles in the graph.
 
         Returns:
-            list: List of triangles.
+            list: List of triangles as sorted lists [u, v, w] with u < v < w.
         """
+        import networkx as nx
+
+        # Build undirected graph
         g = nx.Graph()
         g.add_edges_from(self.edges)
-        cliques = nx.enumerate_all_cliques(g)
-        triangle_nodes = [x for x in cliques if len(x) == 3]
-        # sort the triangles
-        triangle_nodes = [sorted(tri) for tri in triangle_nodes]
+
+        # Precompute neighbors as sets for fast intersection
+        nodes = sorted(g.nodes())
+        neighbors = {u: set(g[u]) for u in nodes}
+
+        triangle_nodes = []
+
+        # Standard node-iterator triangle listing:
+        # for each edge (u, v) with u < v, intersect N(u) and N(v)
+        # any w in the intersection with w > v forms triangle (u, v, w).
+        for u in nodes:
+            for v in neighbors[u]:
+                if v <= u:
+                    continue
+                # common neighbors => potential third vertices of triangles
+                common = neighbors[u] & neighbors[v]
+                for w in common:
+                    if w > v:
+                        triangle_nodes.append([u, v, w])
+
         return triangle_nodes
+
 
     def triangles_dist_based(self, dist_col_name: str, epsilon: float) -> list:
         """
