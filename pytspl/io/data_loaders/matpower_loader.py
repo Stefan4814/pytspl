@@ -38,8 +38,6 @@ def load_matpower_data(case_name: str = "case57", only_sc: bool = True) -> tuple
 
     mat = loadmat(filename, appendmat=False)
 
-    print("Loading MATPOWER file:", filename)
-
     branch = np.asarray(mat["branchResults"], dtype=float)
     bus = np.asarray(mat["busResults"], dtype=float)
 
@@ -88,7 +86,7 @@ def load_matpower_data(case_name: str = "case57", only_sc: bool = True) -> tuple
 
     coordinates = complex.generate_coordinates()
 
-    # Flow: PF per edge, aligned with complex.edges (same pattern as forex/transportation)
+    # Flow: PF per edge, aligned with complex.edges
     pf = branch0[:, PF]
     flow = {edge: float(pf[i]) for i, edge in enumerate(complex.edges)}
 
