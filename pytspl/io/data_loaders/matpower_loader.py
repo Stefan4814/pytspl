@@ -8,7 +8,7 @@ from pytspl.cell_complex import CellComplex
 
 
 MATPOWER_DATA_FOLDER = pkg_resources.resource_filename(
-    "pytspl", "data/powerNetwork"
+    "pytspl", "data/matpower"
 )
 
 BUS_I = 0
@@ -24,7 +24,7 @@ def load_matpower_data(case_name: str = "case57", only_sc: bool = True) -> tuple
     Load a MATPOWER case and return the simplicial/cell complex and coordinates.
 
     Args:
-        case_name (str): File must be named "{case_name}TS.m" under data/powerNetwork
+        case_name (str): File must be named "{case_name}TS.m" under data/matpower
         only_sc (bool, optional): if True return a simplicial complex,
                                   else return a cell complex.
 
