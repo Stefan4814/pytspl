@@ -1,4 +1,4 @@
-"""Data structure for a simplicial complex."""
+"""Data structure for a simplicial complex that supports arbitrary dimension."""
 
 from itertools import combinations
 from typing import Hashable, Iterable
@@ -6,7 +6,6 @@ from typing import Hashable, Iterable
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from pytspl.cell_complex import CellComplex
 from pytspl.cell_complex.ccbuilder import CCBuilder
 
 from pytspl.decomposition.eigendecomposition import (
@@ -25,109 +24,432 @@ from pytspl.decomposition.hodge_decomposition import (
 )
 
 
-class SimplicialComplex(CellComplex):
+class SimplicialComplex:
     """Data structure class for a simplicial complex."""
 
     def __init__(
         self,
-        nodes: list = [],
-        edges: list = [],
-        triangles: list = [],
-        node_features: dict = {},
-        edge_features: dict = {},
+        simplices: dict[int, list] | None = None,
+        nodes: list = None,
+        edges: list = None,
+        triangles: list = None,
+        node_features: dict = None,
+        edge_features: dict = None,
     ):
         """
-        Create a simplicial complex from nodes, edges, and triangles.
+        Create a simplicial complex. Supports higher dimensions via the
+        ``simplices`` argument while keeping compatibility with legacy
+        ``nodes``/``edges``/``triangles`` inputs.
 
         Args:
-            nodes (list, optional): List of nodes. Defaults to [].
-            edges (list, optional): List of edges. Defaults to [].
-            triangles (list, optional): List of triangles. Defaults to [].
+            simplices (dict[int, list], optional): Mapping of dimension to
+                simplices. Each simplex must be an ordered iterable of
+                vertices, where the order encodes orientation. Missing faces
+                are added automatically.
+            nodes (list, optional): 0-simplices. Ignored if ``simplices`` is
+                provided.
+            edges (list, optional): 1-simplices. Ignored if ``simplices`` is
+                provided.
+            triangles (list, optional): 2-simplices. Ignored if ``simplices``
+                is provided.
             node_features (dict, optional): Dict of node features.
-            Defaults to {}.
             edge_features (dict, optional): Dict of edge features.
-            Defaults to {}.
         """
-        assert all(len(t) == 3 for t in triangles), "Triangles must have exactly 3 vertices"
+        node_features = node_features or {}
+        edge_features = edge_features or {}
+        nodes = nodes or []
+        edges = edges or []
+        triangles = triangles or []
 
-        super().__init__(
-            nodes=nodes,
-            edges=edges,
-            polygons=triangles,
-            node_features=node_features,
-            edge_features=edge_features
+        if simplices is not None:
+            simplices_by_dim = self._build_from_mapping(simplices)
+            original_simplices = [
+                [tuple(s) if not isinstance(s, tuple) else s for s in simplices_by_dim[0]]
+            ]
+            for dim_list in simplices_by_dim[1:]:
+                original_simplices.append([list(s) if isinstance(s, tuple) else s for s in dim_list])
+        else:
+            simplices_by_dim = self._build_from_parts(nodes, edges, triangles)
+            original_simplices = [
+                [(n,) for n in simplices_by_dim[0]],
+                [tuple(e) for e in simplices_by_dim[1]],
+                [list(t) for t in simplices_by_dim[2]] if len(simplices_by_dim) > 2 else [],
+            ]
+
+        self._simplices_by_dim = simplices_by_dim
+        self._original_simplices_by_dim = original_simplices
+
+        self.node_features = node_features
+        self.edge_features = edge_features
+
+        self.nodes = list(self._simplices_by_dim[0])
+        self.edges = list(self._simplices_by_dim[1]) if self.max_dim >= 1 else []
+        self.triangles = (
+            list(self._original_simplices_by_dim[2])
+            if self.max_dim >= 2 and len(self._original_simplices_by_dim) > 2
+            else []
         )
-        self.triangles = triangles
-        
+
+        self._incidence_matrices = self._compute_incidence_matrices()
+
+    # Construction helpers -------------------------------------------------
+    def _build_from_parts(
+        self, nodes: list, edges: list, triangles: list
+    ) -> list[list[tuple]]:
+        simplices_by_dim: list[list[tuple]] = [
+            [(n,) for n in nodes],
+            [tuple(e) for e in edges],
+            [tuple(t) for t in triangles] if triangles else [],
+        ]
+        # Remove trailing empty dimensions
+        while simplices_by_dim and simplices_by_dim[-1] == []:
+            simplices_by_dim.pop()
+        return self._ensure_closure(simplices_by_dim)
+
+    def _build_from_mapping(self, simplices: dict[int, list]) -> list[list[tuple]]:
+        max_dim = max(simplices.keys())
+        simplices_by_dim: list[list[tuple]] = []
+        for k in range(max_dim + 1):
+            dim_simplices = simplices.get(k, [])
+            if k == 0:
+                simplices_by_dim.append([(v,) for v in dim_simplices])
+            else:
+                simplices_by_dim.append([tuple(s) for s in dim_simplices])
+        return self._ensure_closure(simplices_by_dim)
+
+    def _ensure_closure(self, simplices_by_dim: list[list[tuple]]) -> list[list[tuple]]:
+        """
+        Ensure all faces exist for each simplex. Missing faces are appended
+        with the induced orientation.
+        """
+        def _dedupe(seq):
+            seen = set()
+            result = []
+            for item in seq:
+                if item not in seen:
+                    seen.add(item)
+                    result.append(item)
+            return result
+
+        if not simplices_by_dim:
+            return [[]]
+
+        max_dim = len(simplices_by_dim) - 1
+        for k in range(max_dim, 0, -1):
+            faces = set(simplices_by_dim[k - 1])
+            for simplex in simplices_by_dim[k]:
+                for i in range(len(simplex)):
+                    face = simplex[:i] + simplex[i + 1 :]
+                    if face not in faces:
+                        simplices_by_dim[k - 1].append(face)
+                        faces.add(face)
+        # de-duplicate while preserving order
+        simplices_by_dim = [_dedupe(dim_list) for dim_list in simplices_by_dim]
+        # keep nodes ordered if they are sortable
+        try:
+            simplices_by_dim[0] = sorted(simplices_by_dim[0])
+        except TypeError:
+            pass
+        return simplices_by_dim
+
+    def _compute_incidence_matrices(self) -> dict[int, np.ndarray]:
+        incidence = {}
+        for k in range(1, len(self._simplices_by_dim)):
+            lower = self._simplices_by_dim[k - 1]
+            upper = self._simplices_by_dim[k]
+            lower_index = {s: idx for idx, s in enumerate(lower)}
+            Bk = np.zeros((len(lower), len(upper)))
+            for col, simplex in enumerate(upper):
+                for i in range(len(simplex)):
+                    face = simplex[:i] + simplex[i + 1 :]
+                    sign = (-1) ** i
+                    try:
+                        row = lower_index[face]
+                    except KeyError:
+                        raise ValueError(f"Missing face {face} for simplex {simplex}")
+                    Bk[row, col] += sign
+            incidence[k] = Bk
+        return incidence
+
+    # Basic properties -----------------------------------------------------
     def print_summary(self):
-        """
-        Print the summary of the simplicial complex.
-        """
+        """Print the summary of the simplicial complex."""
         print(f"Num. of nodes: {len(self.nodes)}")
         print(f"Num. of edges: {len(self.edges)}")
         print(f"Num. of triangles: {len(self.triangles)}")
         print(f"Shape: {self.shape}")
         print(f"Max Dimension: {self.max_dim}")
 
-    # def edges_to_B1(self, edges: list, num_nodes: int) -> np.ndarray:
-    #     """
-    #     Create the B1 matrix (node-edge) from the edges.
+    @property
+    def shape(self) -> tuple:
+        """Return the shape of the simplicial complex."""
+        sizes = tuple(len(s) for s in self._simplices_by_dim)
+        return sizes
 
-    #     Args:
-    #         edges (list): List of edges.
-    #         num_nodes (int): Number of nodes.
+    @property
+    def max_dim(self) -> int:
+        """Return the maximum dimension of the simplicial complex."""
+        return len(self._simplices_by_dim) - 1
 
-    #     Returns:
-    #         np.ndarray: B1 matrix.
-    #     """
-    #     B1 = np.zeros((num_nodes, len(edges)))
+    @property
+    def simplices(self) -> list:
+        """
+        Get all the simplices of the simplicial complex.
 
-    #     for j, edge in enumerate(edges):
-    #         from_node, to_node = edge
-    #         B1[from_node, j] = -1
-    #         B1[to_node, j] = 1
-    #     return B1
+        Returns:
+            list: List of simplices across dimensions.
+        """
+        simplices = []
+        simplices.extend([(n,) for n in self.nodes])
+        simplices.extend(list(self.edges))
+        if self.triangles:
+            simplices.extend(self.triangles)
+        if self.max_dim > 2:
+            for dim_list in self._simplices_by_dim[3:]:
+                simplices.extend([list(s) for s in dim_list])
+        return simplices
 
-    # def triangles_to_B2(self, triangles: list, edges: list) -> np.ndarray:
-    #     """
-    #     Create the B2 matrix (edge-triangle) from the triangles.
+    # Features -------------------------------------------------------------
+    def edge_feature_names(self) -> list[str]:
+        """Return the list of edge feature names."""
+        if len(self.get_edge_features()) == 0:
+            return []
+        return list(list(self.get_edge_features().values())[0].keys())
 
-    #     Args:
-    #         triangles (list): List of triangles.
-    #         edges (list): List of edges.
+    def get_node_features(self) -> list[dict]:
+        """Return the list of node features."""
+        return self.node_features
 
-    #     Returns:
-    #         np.ndarray: B2 matrix.
-    #     """
-    #     B2 = np.zeros((len(edges), len(triangles)))
-    #     for j, triangle in enumerate(triangles):
-    #         a, b, c = triangle
-    #         try:
-    #             index_a = edges.index((a, b))
-    #         except ValueError:
-    #             index_a = edges.index((b, a))
-    #         try:
-    #             index_b = edges.index((b, c))
-    #         except ValueError:
-    #             index_b = edges.index((c, b))
-    #         try:
-    #             index_c = edges.index((a, c))
-    #         except ValueError:
-    #             index_c = edges.index((c, a))
+    def get_edge_features(self, name: str = None) -> list[dict]:
+        """Return the list of edge features."""
+        edge_features = self.edge_features
+        if name:
+            try:
+                return {key: value[name] for key, value in edge_features.items()}
+            except KeyError:
+                raise KeyError(
+                    f"Edge feature {name} does not exist in the simplicial complex."
+                )
+        return edge_features
 
-    #         B2[index_a, j] = 1
-    #         B2[index_c, j] = -1
-    #         B2[index_b, j] = 1
+    # Combinatorial helpers ------------------------------------------------
+    def get_faces(self, simplex: Iterable[Hashable]) -> list[tuple]:
+        """
+        Return the faces of the simplex of dimension len(simplex)-2.
+        Faces are returned in sorted order (lexicographic).
+        """
+        simplex = tuple(simplex)
+        if len(simplex) == 1:
+            return []
+        faces = [simplex[:i] + simplex[i + 1 :] for i in range(len(simplex))]
+        return sorted(faces)
 
-    #     return B2
+    # Matrices -------------------------------------------------------------
+    def identity_matrix(self) -> np.ndarray:
+        """Identity matrix of the simplicial complex."""
+        return np.eye(len(self.nodes))
 
+    def tocsr(self, matrix: np.ndarray) -> csr_matrix:
+        """Convert a numpy array to a csr_matrix."""
+        return csr_matrix(matrix, dtype=float)
+
+    def compute_B1(self) -> np.ndarray:
+        """Return the node-edge incidence matrix."""
+        return self._incidence_matrices.get(1, np.zeros((len(self.nodes), 0)))
+
+    def compute_B2(self) -> np.ndarray:
+        """Return the edge-triangle incidence matrix if present."""
+        return self._incidence_matrices.get(2, np.zeros((len(self.edges), 0)))
+
+    @property
+    def B1(self) -> np.ndarray:
+        return self.compute_B1()
+
+    @property
+    def B2(self) -> np.ndarray:
+        return self.compute_B2()
+
+    def incidence_matrix(self, rank: int) -> csr_matrix:
+        """
+        Compute the incidence matrix of the simplicial complex.
+        """
+        if rank == 0:
+            return self.tocsr(np.ones(len(self.nodes), dtype=float))
+        if rank < 0 or rank > self.max_dim:
+            raise ValueError("Rank cannot be larger than the dimension of the complex.")
+        matrix = self._incidence_matrices.get(rank)
+        if matrix is None:
+            raise ValueError(f"No incidence matrix of rank {rank} available.")
+        return self.tocsr(matrix)
+
+    def adjacency_matrix(self) -> csr_matrix:
+        """Compute the adjacency matrix of the simplicial complex."""
+        adjacency_mat = np.zeros((self.B1.shape[0], self.B1.shape[0]))
+        for col in range(self.B1.shape[1]):
+            col_nonzero = np.where(self.B1[:, col] != 0)[0]
+            from_node, to_node = col_nonzero[0], col_nonzero[1]
+            adjacency_mat[from_node, to_node] = 1
+            adjacency_mat[to_node, from_node] = 1
+        return csr_matrix(adjacency_mat)
+
+    def laplacian_matrix(self) -> csr_matrix:
+        """Compute the 0-th Laplacian matrix of the simplicial complex."""
+        B1 = self.incidence_matrix(rank=1)
+        return B1 @ B1.T
+
+    def lower_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
+        """Compute the lower Laplacian matrix."""
+        if rank < 1 or rank > self.max_dim:
+            raise ValueError("Rank must be at least 1 and not exceed the max dimension.")
+        Bk = self.incidence_matrix(rank=rank)
+        return Bk.T @ Bk
+
+    def upper_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
+        """Compute the upper Laplacian matrix."""
+        if rank < 0 or rank > self.max_dim:
+            raise ValueError("Rank must be between 0 and the max dimension.")
+        next_rank = rank + 1
+        if next_rank > self.max_dim:
+            size = len(self._simplices_by_dim[rank])
+            return self.tocsr(np.zeros((size, size)))
+        Bk1 = self.incidence_matrix(rank=next_rank)
+        return Bk1 @ Bk1.T
+
+    def hodge_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
+        """Compute the Hodge Laplacian matrix of the simplicial complex."""
+        if rank < 0 or rank > self.max_dim:
+            raise ValueError("Rank must be between 0 and the max dimension.")
+        if rank == 0:
+            return self.laplacian_matrix()
+        L_lower = self.lower_laplacian_matrix(rank=rank)
+        L_upper = self.upper_laplacian_matrix(rank=rank)
+        return L_lower + L_upper
+
+    # Shifting and embeddings ---------------------------------------------
+    def apply_lower_shifting(self, flow: np.ndarray, steps: int = 1) -> np.ndarray:
+        """Apply the lower shifting operator to the simplicial complex."""
+        L_lower = self.lower_laplacian_matrix(rank=1)
+        if steps == 1:
+            return L_lower @ flow
+        return L_lower @ (L_lower @ flow)
+
+    def apply_upper_shifting(self, flow: np.ndarray, steps: int = 1) -> np.ndarray:
+        """Apply the upper shifting operator to the simplicial complex."""
+        L_upper = self.upper_laplacian_matrix(rank=1)
+        if steps == 1:
+            return L_upper @ flow
+        return L_upper @ (L_upper @ flow)
+
+    def apply_k_step_shifting(self, flow: np.ndarray, steps: int = 2) -> np.ndarray:
+        """Apply the k-step shifting operator to the simplicial complex."""
+        lower_shift = self.apply_lower_shifting(flow, steps=steps)
+        upper_shift = self.apply_upper_shifting(flow, steps=steps)
+        return lower_shift + upper_shift
+
+    def get_simplicial_embeddings(self, flow: np.ndarray) -> tuple:
+        """Return harmonic, curl, and gradient embeddings."""
+        k = 1
+        L1 = self.hodge_laplacian_matrix(rank=k).toarray()
+        L1U = self.upper_laplacian_matrix(rank=k).toarray()
+        L1L = self.lower_laplacian_matrix(rank=k).toarray()
+
+        u_h, _ = get_harmonic_eigenpair(L1, tolerance=1e-3)
+        u_c, _ = get_curl_eigenpair(L1U, 1e-3)
+        u_g, _ = get_gradient_eigenpair(L1L, 1e-3)
+
+        f_tilda_h = u_h.T @ flow
+        f_tilda_c = u_c.T @ flow
+        f_tilda_g = u_g.T @ flow
+        return f_tilda_h, f_tilda_c, f_tilda_g
+
+    def get_component_eigenpair(
+        self,
+        component: str = FrequencyComponent.HARMONIC.value,
+        tolerance: float = 1e-3,
+    ) -> tuple:
+        """Return eigendecomposition of a component."""
+        if component == FrequencyComponent.HARMONIC.value:
+            L1 = self.hodge_laplacian_matrix(rank=1).toarray()
+            u_h, eig_h = get_harmonic_eigenpair(L1, tolerance)
+            return u_h, eig_h
+        if component == FrequencyComponent.CURL.value:
+            L1U = self.upper_laplacian_matrix(rank=1).toarray()
+            u_c, eig_c = get_curl_eigenpair(L1U, tolerance)
+            return u_c, eig_c
+        if component == FrequencyComponent.GRADIENT.value:
+            L1L = self.lower_laplacian_matrix(rank=1).toarray()
+            u_g, eig_g = get_gradient_eigenpair(L1L, tolerance)
+            return u_g, eig_g
+        raise ValueError("Invalid component. Choose from 'harmonic', 'curl', or 'gradient'.")
+
+    def get_total_variance(self) -> np.ndarray:
+        """Get the total variance of the SC."""
+        laplacian_matrix = self.laplacian_matrix()
+        return get_total_variance(laplacian_matrix)
+
+    def get_divergence(self, flow: np.ndarray) -> np.ndarray:
+        """Get the divergence of the edge flow."""
+        B1 = self.incidence_matrix(rank=1)
+        return get_divergence(B1, flow)
+
+    def get_curl(self, flow: np.ndarray) -> np.ndarray:
+        """Get the curl of the edge flow."""
+        B2 = self.incidence_matrix(rank=2)
+        return get_curl(B2, flow)
+
+    def get_component_flow(
+        self,
+        flow: np.ndarray,
+        component: str = FrequencyComponent.GRADIENT.value,
+        round_fig: bool = True,
+        round_sig_fig: int = 2,
+    ) -> np.ndarray:
+        """Return the component flow of the simplicial complex using Hodge decomposition."""
+        B1 = self.incidence_matrix(rank=1)
+        B2 = self.incidence_matrix(rank=2)
+
+        if component == FrequencyComponent.HARMONIC.value:
+            return get_harmonic_flow(
+                B1=B1,
+                B2=B2,
+                flow=flow,
+                round_fig=round_fig,
+                round_sig_fig=round_sig_fig,
+            )
+        if component == FrequencyComponent.CURL.value:
+            return get_curl_flow(
+                B2=B2,
+                flow=flow,
+                round_fig=round_fig,
+                round_sig_fig=round_sig_fig,
+            )
+        if component == FrequencyComponent.GRADIENT.value:
+            return get_gradient_flow(
+                B1=B1,
+                flow=flow,
+                round_fig=round_fig,
+                round_sig_fig=round_sig_fig,
+            )
+        raise ValueError("Invalid component. Choose from 'harmonic', 'curl', or 'gradient'.")
+
+    # Conversions ----------------------------------------------------------
+    def to_cell_complex(self):
+        """
+        Convert the simplicial complex into a cell complex by detecting larger polygons.
+        """
+        cc_builder = CCBuilder(
+            nodes=self.nodes,
+            edges=self.edges,
+            node_features=self.node_features,
+            edge_features=self.edge_features,
+        )
+        return cc_builder.to_cell_complex()
+
+    # Utility --------------------------------------------------------------
     def generate_coordinates(self) -> dict:
         """
         Generate the coordinates of the nodes using spring layout
         if the coordinates of the sc don't exist.
-
-        Returns:
-            dict: Coordinates of the nodes.
         """
         import networkx as nx
 
@@ -140,450 +462,3 @@ class SimplicialComplex(CellComplex):
 
         coordinates = nx.spring_layout(G)
         return coordinates
-
-    @property
-    def shape(self) -> tuple:
-        """Return the shape of the simplicial complex."""
-        return (len(self.nodes), len(self.edges), len(self.triangles))
-
-    @property
-    def max_dim(self) -> int:
-        """Return the maximum dimension of the simplicial complex."""
-        return max(len(simplex) for simplex in self.simplices) - 1
-
-    @property
-    def simplices(self) -> list[tuple]:
-        """
-        Get all the simplices of the simplicial complex.
-
-        This includes 0-simplices (nodes), 1-simplices (edges), 2-simplices.
-
-        Returns:
-            list[tuple]: List of simplices.
-        """
-        nodes = [(node,) for node in self.nodes]
-        return nodes + self.edges + self.triangles
-
-    def edge_feature_names(self) -> list[str]:
-        """Return the list of edge feature names."""
-        if len(self.get_edge_features()) == 0:
-            return []
-
-        return list(list(self.get_edge_features().values())[0].keys())
-
-    def get_node_features(self) -> list[dict]:
-        """Return the list of node features."""
-        return self.node_features
-
-    def get_edge_features(self, name: str = None) -> list[dict]:
-        """Return the list of edge features."""
-        edge_features = self.edge_features
-        if name:
-
-            try:
-                return {
-                    key: value[name] for key, value in edge_features.items()
-                }
-
-            except KeyError:
-                raise KeyError(
-                    f"Edge feature {name} does not exist in"
-                    + "the simplicial complex."
-                )
-
-        else:
-            return edge_features
-
-    def get_faces(self, simplex: Iterable[Hashable]) -> set[tuple]:
-        """
-        Return the faces of the simplex in order.
-
-        Args:
-            simplex (Iterable[Hashable]): Simplex for which to find the faces.
-
-        Returns:
-            set[tuple]: Set of faces of the simplex.
-        """
-        face_set = set()
-        num_of_nodes = len(simplex)
-        for r in range(num_of_nodes, 0, -1):
-            for face in combinations(simplex, r):
-                face_set.add(tuple(sorted(face)))
-        k = len(simplex) - 1
-        face_set = sorted([face for face in face_set if len(face) == k])
-        return face_set
-
-    def identity_matrix(self) -> np.ndarray:
-        """Identity matrix of the simplicial complex."""
-        return np.eye(len(self.nodes))
-
-    # def tocsr(self, matrix: np.ndarray) -> csr_matrix:
-    #     """
-    #     Convert a numpy array to a csr_matrix.
-
-    #     Args:
-    #         matrix (np.ndarray): Numpy array to convert.
-
-    #     Returns:
-    #         csr_matrix: Compressed Sparse Row matrix.
-    #     """
-    #     return csr_matrix(matrix, dtype=float)
-
-    # def incidence_matrix(self, rank: int) -> csr_matrix:
-    #     """
-    #     Compute the incidence matrix of the simplicial complex.
-
-    #     Args:
-    #         rank (int): Rank of the incidence matrix.
-
-    #     Returns:
-    #         csr_matrix: Incidence matrix of the simplicial complex.
-    #     """
-    #     if rank == 0:
-    #         return np.ones(len(self.nodes), dtype=float)
-    #     elif rank == 1:
-    #         return self.tocsr(self.B1)
-    #     elif rank == 2:
-    #         return self.tocsr(self.B2)
-    #     else:
-    #         raise ValueError(
-    #             "Rank cannot be larger than the dimension of the complex."
-    #         )
-
-    def adjacency_matrix(self) -> csr_matrix:
-        """
-        Compute the adjacency matrix of the simplicial complex.
-
-        Returns:
-            csr_matrix: Adjacency matrix of the simplicial complex.
-        """
-        adjacency_mat = np.zeros((self.B1.shape[0], self.B1.shape[0]))
-
-        for col in range(self.B1.shape[1]):
-            col_nonzero = np.where(self.B1[:, col] != 0)[0]
-            from_node, to_node = col_nonzero[0], col_nonzero[1]
-            adjacency_mat[from_node, to_node] = 1
-            adjacency_mat[to_node, from_node] = 1
-
-        adjacency_mat = csr_matrix(adjacency_mat)
-        return adjacency_mat
-
-    # def laplacian_matrix(self) -> csr_matrix:
-    #     """
-    #     Compute the Laplacian matrix of the simplicial complex.
-
-    #     Returns:
-    #         csr_matrix: Laplacian matrix of the simplicial complex.
-    #     """
-    #     B1 = self.incidence_matrix(rank=1)
-    #     return B1 @ B1.T
-
-    # def lower_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
-    #     """
-    #     Compute the lower Laplacian matrix of the simplicial complex.
-
-    #     Args:
-    #         rank (int): Rank of the lower Laplacian matrix.
-
-    #     ValueError:
-    #         If the rank is not 1 or 2.
-
-    #     Returns:
-    #         csr_matrix: Lower Laplacian matrix of the simplicial complex.
-    #     """
-    #     if rank == 1:
-    #         B1 = self.incidence_matrix(rank=1)
-    #         return B1.T @ B1
-    #     elif rank == 2:
-    #         B2 = self.incidence_matrix(rank=2)
-    #         return B2.T @ B2
-    #     else:
-    #         raise ValueError("Rank must be either 1 or 2.")
-
-    # def upper_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
-    #     """
-    #     Compute the upper Laplacian matrix of the simplicial complex.
-
-    #     Args:
-    #         rank (int): Rank of the upper Laplacian matrix.
-
-    #     ValueError:
-    #         If the rank is not 0 or 1.
-
-    #     Returns:
-    #         csr_matrix: Upper Laplacian matrix of the simplicial complex.
-    #     """
-    #     if rank == 0:
-    #         return self.laplacian_matrix()
-    #     elif rank == 1:
-    #         B2 = self.incidence_matrix(rank=2)
-    #         return B2 @ B2.T
-    #     else:
-    #         raise ValueError("Rank must be either 0 or 1.")
-
-    # def hodge_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
-    #     """
-    #     Compute the Hodge Laplacian matrix of the simplicial complex.
-
-    #     Args:
-    #         rank (int): Rank of the Hodge Laplacian matrix.
-
-    #     ValueError:
-    #         If the rank is not 0, 1, or 2.
-
-    #     Returns:
-    #         csr_matrix: Hodge Laplacian matrix of the simplicial complex.
-    #     """
-    #     if rank == 0:
-    #         return self.laplacian_matrix()
-    #     elif rank == 1:
-    #         return self.lower_laplacian_matrix(
-    #             rank=rank
-    #         ) + self.upper_laplacian_matrix(rank=rank)
-    #     else:
-    #         raise ValueError("Rank must be between 0 and 2.")
-
-    def apply_lower_shifting(
-        self, flow: np.ndarray, steps: int = 1
-    ) -> np.ndarray:
-        """
-        Apply the lower shifting operator to the simplicial complex.
-
-        Args:
-            flow (np.ndarray): Flow on the simplicial complex.
-            steps (int): Number of times to apply the lower shifting operator.
-            Defaults to 1.
-
-        Returns:
-            np.ndarray: Lower shifted simplicial complex.
-        """
-        L1L = self.lower_laplacian_matrix(rank=1)
-
-        if steps == 1:
-            # L(1, l) @ f
-            flow = L1L @ flow
-        else:
-            # L(1, l)**2 @ f
-            flow = L1L @ (L1L @ flow)
-
-        return flow
-
-    def apply_upper_shifting(
-        self, flow: np.ndarray, steps: int = 1
-    ) -> np.ndarray:
-        """
-        Apply the upper shifting operator to the simplicial complex.
-
-        Args:
-            flow (np.ndarray): Flow on the simplicial complex.
-            steps (int): Number of times to apply the upper shifting operator.
-            Defaults to 1.
-
-        Returns:
-            np.ndarray: Upper shifted simplicial complex.
-        """
-        L1U = self.upper_laplacian_matrix(rank=1)
-
-        if steps == 1:
-            # L(1, u) @ f
-            flow = L1U @ flow
-        else:
-            # L(1, u)**2 @ f
-            flow = L1U @ (L1U @ flow)
-
-        return flow
-
-    def apply_k_step_shifting(
-        self, flow: np.ndarray, steps: int = 2
-    ) -> np.ndarray:
-        """
-        Apply the k-step shifting operator to the simplicial complex.
-
-        Args:
-            flow (np.ndarray): Flow on the simplicial complex.
-
-        Returns:
-            np.ndarray: k-step shifted simplicial complex.
-        """
-        two_step_lower_shifting = self.apply_lower_shifting(flow, steps=steps)
-        two_step_upper_shifting = self.apply_upper_shifting(flow, steps=steps)
-        return two_step_lower_shifting + two_step_upper_shifting
-
-    def get_simplicial_embeddings(self, flow: np.ndarray) -> tuple:
-        """
-        Return the simplicial embeddings of the simplicial complex.
-
-        Args:
-            flow (np.ndarray): Flow on the simplicial complex.
-
-        Returns:
-            np.ndarray: Simplicial embeddings of the simplicial complex.
-            Harmonic embedding, curl embedding, and gradient embedding.
-        """
-        k = 1
-        L1 = self.hodge_laplacian_matrix(rank=k).toarray()
-        L1U = self.upper_laplacian_matrix(rank=k).toarray()
-        L1L = self.lower_laplacian_matrix(rank=k).toarray()
-
-        # eigendecomposition
-        u_h, _ = get_harmonic_eigenpair(L1, tolerance=1e-3)
-        u_c, _ = get_curl_eigenpair(L1U, 1e-3)
-        u_g, _ = get_gradient_eigenpair(L1L, 1e-3)
-
-        # each entry of an embedding represents the weight the flow has on the
-        # corresponding eigenvector
-        f_tilda_h = u_h.T @ flow
-        f_tilda_c = u_c.T @ flow
-        f_tilda_g = u_g.T @ flow
-
-        return f_tilda_h, f_tilda_c, f_tilda_g
-
-    def get_component_eigenpair(
-        self,
-        component: str = FrequencyComponent.HARMONIC.value,
-        tolerance: float = 1e-3,
-    ) -> tuple:
-        """
-        Return the eigendecomposition of the simplicial complex.
-
-        Args:
-            component (str, optional): Component of the eigendecomposition
-            to return. Defaults to "harmonic".
-            tolerance (float, optional): Tolerance for eigenvalues to be
-            considered zero. Defaults to 1e-3.
-
-        ValueError:
-            If the component is not one of 'harmonic', 'curl', or 'gradient'.
-
-        Returns:
-            np.ndarray: Eigenvectors of the component.
-            np.ndarray: Eigenvalues of the component.
-        """
-        if component == FrequencyComponent.HARMONIC.value:
-            L1 = self.hodge_laplacian_matrix(rank=1).toarray()
-            u_h, eig_h = get_harmonic_eigenpair(L1, tolerance)
-            return u_h, eig_h
-        elif component == FrequencyComponent.CURL.value:
-            L1U = self.upper_laplacian_matrix(rank=1).toarray()
-            u_c, eig_c = get_curl_eigenpair(L1U, tolerance)
-            return u_c, eig_c
-        elif component == FrequencyComponent.GRADIENT.value:
-            L1L = self.lower_laplacian_matrix(rank=1).toarray()
-            u_g, eig_g = get_gradient_eigenpair(L1L, tolerance)
-            return u_g, eig_g
-        else:
-            raise ValueError(
-                "Invalid component. Choose from 'harmonic',"
-                + "'curl', or 'gradient'."
-            )
-
-    def get_total_variance(self) -> np.ndarray:
-        """
-        Get the total variance of the SC.
-
-        Returns:
-            np.ndarray: The total variance of the SC.
-        """
-        laplacian_matrix = self.laplacian_matrix()
-        return get_total_variance(laplacian_matrix)
-
-    def get_divergence(self, flow: np.ndarray) -> np.ndarray:
-        """
-        Get the divergence of the edge flow.
-
-        Args:
-            flow (np.ndarray): The edge flow defined over a SC.
-
-        Returns:
-            np.ndarray: The divergence of the edge flow.
-        """
-        B1 = self.incidence_matrix(rank=1)
-        return get_divergence(B1, flow)
-
-    def get_curl(self, flow: np.ndarray) -> np.ndarray:
-        """
-        Get the curl of the edge flow.
-
-        Args:
-            flow (np.ndarray): The edge flow defined over a SC.
-
-        Returns:
-            np.ndarray: The curl of the edge flow.
-        """
-        B2 = self.incidence_matrix(rank=2)
-        return get_curl(B2, flow)
-
-    def get_component_flow(
-        self,
-        flow: np.ndarray,
-        component: str = FrequencyComponent.GRADIENT.value,
-        round_fig: bool = True,
-        round_sig_fig: int = 2,
-    ) -> np.ndarray:
-        """
-        Return the component flow of the simplicial complex
-        using the Hodge decomposition.
-
-        Args:
-            flow (np.ndarray): Flow on the simplicial complex.
-            component (str, optional): Component of the Hodge decomposition.
-            Defaults to FrequencyComponent.GRADIENT.value.
-            round_fig (bool, optional): Round the hodgedecomposition to the
-            Default to True.
-            round_sig_fig (int, optional): Round to significant figure.
-            Defaults to 2.
-
-        Returns:
-            np.ndarray: Hodge decomposition of the edge flow.
-        """
-        B1 = self.incidence_matrix(rank=1)
-        B2 = self.incidence_matrix(rank=2)
-
-        if component == FrequencyComponent.HARMONIC.value:
-            f_h = get_harmonic_flow(
-                B1=B1,
-                B2=B2,
-                flow=flow,
-                round_fig=round_fig,
-                round_sig_fig=round_sig_fig,
-            )
-            return f_h
-        elif component == FrequencyComponent.CURL.value:
-            f_c = get_curl_flow(
-                B2=B2,
-                flow=flow,
-                round_fig=round_fig,
-                round_sig_fig=round_sig_fig,
-            )
-            return f_c
-        elif component == FrequencyComponent.GRADIENT.value:
-            f_g = get_gradient_flow(
-                B1=B1,
-                flow=flow,
-                round_fig=round_fig,
-                round_sig_fig=round_sig_fig,
-            )
-            return f_g
-        else:
-            raise ValueError(
-                "Invalid component. Choose from 'harmonic',"
-                + "'curl', or 'gradient'."
-            )
-        
-    def to_cell_complex(self) -> CellComplex:
-        """
-        Convert the simplicial complex into a cell complex by detecting larger polygons.
-
-        Returns:
-            CellComplex: The resulting cell complex.
-        """
-        # Use CCBuilder to find larger cycles (polygons)
-        cc_builder = CCBuilder(
-            nodes=self.nodes,
-            edges=self.edges,
-            node_features=self.node_features,
-            edge_features=self.edge_features
-        )
-
-        # Create a CellComplex with these polygons
-        return cc_builder.to_cell_complex()
