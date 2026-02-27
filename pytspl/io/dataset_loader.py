@@ -11,6 +11,7 @@ from .data_loaders.transportation_loader import (
 from .data_loaders.wsn_loader import load_wsn_data
 from .data_loaders.webkb_loader import load_webkb_data, _load_webkb_subset
 from .data_loaders.matpower_loader import load_matpower_data
+from .data_loaders.wntr_loader import load_wntr_data
 
 DATASETS = {
     "paper": load_paper_data,
@@ -26,6 +27,9 @@ DATASETS = {
     "matpower-case300": lambda only_sc=True: load_matpower_data("case300", only_sc=only_sc),
     "matpower-ACTIVSg200": lambda only_sc=True: load_matpower_data("case_ACTIVSg200", only_sc=only_sc),
     "matpower-ACTIVSg500": lambda only_sc=True: load_matpower_data("case_ACTIVSg500", only_sc=only_sc),
+    "wntr-bellingham": lambda only_sc=True: load_wntr_data("bellingham", only_sc=only_sc),
+    "wntr-fairfield": lambda only_sc=True: load_wntr_data("fairfield", only_sc=only_sc),
+    "wntr-oberlin": lambda only_sc=True: load_wntr_data("oberlin", only_sc=only_sc),
 }
 
 
