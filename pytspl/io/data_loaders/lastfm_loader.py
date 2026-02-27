@@ -8,12 +8,13 @@ LASTFM_DATA_FOLDER = pkg_resources.resource_filename(
 )
 
 
-def load_lastfm_1k_artist(only_sc: bool = True) -> tuple:
+def load_lastfm_1k_artist(only_sc: bool = True, only_2d: bool = True) -> tuple:
     """
     Read the lastfm 1k artist data.
 
     Args:
         only_sc(bool, optional): If true, return a simplical complex, else return a cell complex
+        only_2d (bool, optional): if true (default) build up to triangles; if false, build all simplices.
     
     Returns:
         tuple:
@@ -26,7 +27,7 @@ def load_lastfm_1k_artist(only_sc: bool = True) -> tuple:
         f"{LASTFM_DATA_FOLDER}/B2t-artist.csv",
     )
     if only_sc:
-        complex = builder.to_simplicial_complex(triangles=triangles)
+        complex = builder.to_simplicial_complex(triangles=triangles, only_2d=only_2d)
     else:
         complex = builder.to_cell_complex()
 

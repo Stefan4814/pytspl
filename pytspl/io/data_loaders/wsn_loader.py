@@ -9,7 +9,7 @@ from pytspl.cell_complex.ccbuilder import CCBuilder
 WSN_DATA_FOLDER = pkg_resources.resource_filename("pytspl", "data/wsn")
 
 
-def load_wsn_data(only_sc: bool = True) -> tuple:
+def load_wsn_data(only_sc: bool = True, only_2d: bool = True) -> tuple:
     """
     Load the water supply network data and return the simplicial complex
     and coordinates.
@@ -49,8 +49,8 @@ def load_wsn_data(only_sc: bool = True) -> tuple:
     builder = builder_cls(nodes=nodes, edges=edges)
 
     if only_sc:
-        complex = builder.to_simplicial_complex()
-    else: 
+        complex = builder.to_simplicial_complex(only_2d=only_2d)
+    else:
         complex = builder.to_cell_complex()
 
     # no coordinates

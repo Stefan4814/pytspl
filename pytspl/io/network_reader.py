@@ -72,7 +72,8 @@ def read_tntp(
     skip_rows: int,
     delimiter: str = "\t",
     start_index_zero: bool = True,
-    only_sc: bool = True
+    only_sc: bool = True,
+    only_2d: bool = True,
 ) -> Union[SCBuilder, CCBuilder]:
     """Read a tntp file and returns a graph.
 
@@ -90,6 +91,8 @@ def read_tntp(
         only_sc (bool, optional):
             If True, returns an SCBuilder (simplicial complex); if False, returns a CCBuilder
             (cell complex).
+        only_2d (bool, optional): Included for API symmetry; SCBuilder handles
+            higher-dimensional inference via `only_2d` when constructing the complex.
     Returns:
         Union[SCBuilder, CCBuilder]:
             - If `only_sc` is True, an SCBuilder initialized with the parsed nodes, edges,
@@ -132,6 +135,7 @@ def read_tntp(
         edges=edges,
         node_features=node_features,
         edge_features=edge_features,
+        simplices=None,
     )
 
 
@@ -142,7 +146,8 @@ def read_csv(
     dest_col: str,
     feature_cols: list = None,
     start_index_zero: bool = True,
-    only_sc: bool = True
+    only_sc: bool = True,
+    only_2d: bool = True,
 ) -> Union[SCBuilder, CCBuilder]:
     """Read a csv file and returns a graph.
 
@@ -158,6 +163,8 @@ def read_csv(
         only_sc (bool, optional):
             If True, returns an SCBuilder (simplicial complex); if False, returns a CCBuilder
             (cell complex).
+        only_2d (bool, optional): Included for API symmetry; SCBuilder handles
+            higher-dimensional inference via `only_2d` when constructing the complex.
     Returns:
         Union[SCBuilder, CCBuilder]:
             - If `only_sc` is True, an SCBuilder initialized with the parsed nodes, edges,
@@ -190,6 +197,7 @@ def read_csv(
         edges=edges,
         node_features=node_features,
         edge_features=edge_features,
+        simplices=None,
     )
 
 

@@ -8,13 +8,14 @@ PAPER_DATA_FOLDER = pkg_resources.resource_filename(
 )
 
 
-def load_paper_data(only_sc: bool = True) -> tuple:
+def load_paper_data(only_sc: bool = True, only_2d: bool = True) -> tuple:
     """
     Read the paper data and return the simplicial/cell complex, coordinates
     and the flow.
 
     Args:
         only_sc(bool, optional): whether to return the simplicial complex or the cell complex 
+        only_2d (bool, optional): if true (default) build up to triangles; if false, build all simplices.
     
     Returns:
         tuple:
@@ -38,11 +39,10 @@ def load_paper_data(only_sc: bool = True) -> tuple:
         only_sc=only_sc,
     )
 
-    sc_or_cc = (
-        builder.to_simplicial_complex()
-        if only_sc
-        else builder.to_cell_complex()
-    )
+    if only_sc:
+        sc_or_cc = builder.to_simplicial_complex(only_2d=only_2d)
+    else:
+        sc_or_cc = builder.to_cell_complex()
 
     # read coordinates data
     filename = PAPER_DATA_FOLDER + "/coordinates.csv"

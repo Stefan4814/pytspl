@@ -45,7 +45,7 @@ def load_webkb_data() -> dict[str, nx.Graph]:
     return graphs
 
 
-def _load_webkb_subset(subset: str, only_sc: bool = True):
+def _load_webkb_subset(subset: str, only_sc: bool = True, only_2d: bool = True):
     """
     Build and return a (simplicial or cell) complex for one WebKB split.
 
@@ -55,6 +55,8 @@ def _load_webkb_subset(subset: str, only_sc: bool = True):
             subdataset to load.
         only_sc (bool, optional):
             If True (default), returns a SimplicialComplex. If False, returns CellComplex.
+        only_2d (bool, optional):
+            If True (default), build up to triangles; if False, build all simplices.
     Returns:
         tuple:
             - complex (SimplicialComplex or CellComplex):
@@ -77,11 +79,11 @@ def _load_webkb_subset(subset: str, only_sc: bool = True):
     # build the simplicial complex
     builder_cls = SCBuilder if only_sc else CCBuilder
     builder = builder_cls(
-        nodes=list(G.nodes()), 
+        nodes=list(G.nodes()),
         edges=list(G.edges())
     )
     if only_sc:
-        complex = builder.to_simplicial_complex()
+        complex = builder.to_simplicial_complex(only_2d=only_2d)
     else:
         complex = builder.to_cell_complex()
 

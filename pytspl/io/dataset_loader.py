@@ -15,9 +15,15 @@ DATASETS = {
     "paper": load_paper_data,
     "forex": load_forex_data,
     "lastfm-1k-artist": load_lastfm_1k_artist,
-    "webkb-cornell": lambda only_sc=True: _load_webkb_subset("cornell", only_sc=only_sc),
-    "webkb-texas":   lambda only_sc=True: _load_webkb_subset("texas", only_sc=only_sc),
-    "webkb-wisconsin": lambda only_sc=True: _load_webkb_subset("wisconsin", only_sc=only_sc),
+    "webkb-cornell": lambda only_sc=True, only_2d=True: _load_webkb_subset(
+        "cornell", only_sc=only_sc, only_2d=only_2d
+    ),
+    "webkb-texas": lambda only_sc=True, only_2d=True: _load_webkb_subset(
+        "texas", only_sc=only_sc, only_2d=only_2d
+    ),
+    "webkb-wisconsin": lambda only_sc=True, only_2d=True: _load_webkb_subset(
+        "wisconsin", only_sc=only_sc, only_2d=only_2d
+    ),
     "wsn": load_wsn_data,
 }
 
@@ -34,7 +40,7 @@ def list_datasets() -> list:
     return transportation_datasets + other_datasets
 
 
-def load_dataset(dataset: str, only_sc: bool = True) -> tuple:
+def load_dataset(dataset: str, only_sc: bool = True, only_2d: bool = True) -> tuple:
     """
     Load the dataset and return the simplicial complex
     and coordinates.
@@ -42,6 +48,9 @@ def load_dataset(dataset: str, only_sc: bool = True) -> tuple:
     Args:
         dataset (str): The name of the dataset.
         only_sc (bool, optional): if true load the dataset as a simplicial complex, else as a cell complex
+        only_2d (bool, optional): if true build up to triangles; if false build all simplices available.
+        only_2d (bool, optional): if true (default) restrict simplicial complex construction
+        to up to triangles; if false, build all simplices available from the graph.
 
     ValueError:
         If the dataset is not found.
@@ -60,9 +69,11 @@ def load_dataset(dataset: str, only_sc: bool = True) -> tuple:
         )
 
     if dataset in DATASETS:
-        complex, coordinates, flow = DATASETS[dataset](only_sc=only_sc)
+        complex, coordinates, flow = DATASETS[dataset](only_sc=only_sc, only_2d=only_2d)
     else:
-        complex, coordinates, flow = load_transportation_dataset(dataset=dataset, only_sc=only_sc)
+        complex, coordinates, flow = load_transportation_dataset(
+            dataset=dataset, only_sc=only_sc, only_2d=only_2d
+        )
 
     assert complex is not None
     assert coordinates is not None
