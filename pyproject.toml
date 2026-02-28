@@ -56,6 +56,7 @@ show_missing = true
 # Linting
 [tool.flake8]
 extend-ignore = ["E203", "E741", "F541"]
+max-line-length = 120
 per-file-ignores = ['__init__.py:F401']
 
 # Build
