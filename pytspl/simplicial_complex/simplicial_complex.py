@@ -92,10 +92,11 @@ class SimplicialComplex:
 
         self._incidence_matrices = self._compute_incidence_matrices()
 
-    # Construction helpers -------------------------------------------------
+    # Construction helpers
     def _build_from_parts(
         self, nodes: list, edges: list, triangles: list
     ) -> list[list[tuple]]:
+        '''Build simplices from separate lists of nodes, edges, and triangles'''
         simplices_by_dim: list[list[tuple]] = [
             [(n,) for n in nodes],
             [tuple(e) for e in edges],
@@ -107,6 +108,7 @@ class SimplicialComplex:
         return self._ensure_closure(simplices_by_dim)
 
     def _build_from_mapping(self, simplices: dict[int, list]) -> list[list[tuple]]:
+        '''Build simplices from a mapping of dimension to simplices'''
         max_dim = max(simplices.keys())
         simplices_by_dim: list[list[tuple]] = []
         for k in range(max_dim + 1):
@@ -153,6 +155,7 @@ class SimplicialComplex:
         return simplices_by_dim
 
     def _compute_incidence_matrices(self) -> dict[int, np.ndarray]:
+        '''Compute the incidence matrices for each dimension.'''
         incidence = {}
         for k in range(1, len(self._simplices_by_dim)):
             lower = self._simplices_by_dim[k - 1]
@@ -171,7 +174,7 @@ class SimplicialComplex:
             incidence[k] = Bk
         return incidence
 
-    # Basic properties -----------------------------------------------------
+    # Basic properties
     def print_summary(self):
         """Print the summary of the simplicial complex."""
         print(f"Num. of nodes: {len(self.nodes)}")
@@ -209,7 +212,7 @@ class SimplicialComplex:
                 simplices.extend([list(s) for s in dim_list])
         return simplices
 
-    # Features -------------------------------------------------------------
+    # Features
     def edge_feature_names(self) -> list[str]:
         """Return the list of edge feature names."""
         if len(self.get_edge_features()) == 0:
@@ -232,11 +235,15 @@ class SimplicialComplex:
                 )
         return edge_features
 
-    # Combinatorial helpers ------------------------------------------------
+    # Combinatorial helpers
     def get_faces(self, simplex: Iterable[Hashable]) -> list[tuple]:
         """
         Return the faces of the simplex of dimension len(simplex)-2.
         Faces are returned in sorted order (lexicographic).
+        Args:
+            simplex (Iterable[Hashable]): Simplex for which to find the faces.
+        Returns:
+            list[tuple]: List of faces of the simplex.
         """
         simplex = tuple(simplex)
         if len(simplex) == 1:
@@ -244,7 +251,7 @@ class SimplicialComplex:
         faces = [simplex[:i] + simplex[i + 1 :] for i in range(len(simplex))]
         return sorted(faces)
 
-    # Matrices -------------------------------------------------------------
+    # Matrices
     def identity_matrix(self) -> np.ndarray:
         """Identity matrix of the simplicial complex."""
         return np.eye(len(self.nodes))
@@ -325,29 +332,58 @@ class SimplicialComplex:
         L_upper = self.upper_laplacian_matrix(rank=rank)
         return L_lower + L_upper
 
-    # Shifting and embeddings ---------------------------------------------
+    # Shifting and embeddings
     def apply_lower_shifting(self, flow: np.ndarray, steps: int = 1) -> np.ndarray:
-        """Apply the lower shifting operator to the simplicial complex."""
+        """
+        Apply the lower shifting operator to the simplicial complex.
+        Args:
+            flow (np.ndarray): Flow on the simplicial complex.
+            steps (int): Number of times to apply the lower shifting operator.
+            Defaults to 1.
+        Returns:
+            np.ndarray: Lower shifted simplicial complex.
+        """
         L_lower = self.lower_laplacian_matrix(rank=1)
         if steps == 1:
             return L_lower @ flow
         return L_lower @ (L_lower @ flow)
 
     def apply_upper_shifting(self, flow: np.ndarray, steps: int = 1) -> np.ndarray:
-        """Apply the upper shifting operator to the simplicial complex."""
+        """
+        Apply the upper shifting operator to the simplicial complex.
+        Args:
+            flow (np.ndarray): Flow on the simplicial complex.
+            steps (int): Number of times to apply the upper shifting operator.
+            Defaults to 1.
+        Returns:
+            np.ndarray: Upper shifted simplicial complex.
+        """
         L_upper = self.upper_laplacian_matrix(rank=1)
         if steps == 1:
             return L_upper @ flow
         return L_upper @ (L_upper @ flow)
 
     def apply_k_step_shifting(self, flow: np.ndarray, steps: int = 2) -> np.ndarray:
-        """Apply the k-step shifting operator to the simplicial complex."""
+        """
+        Apply the k-step shifting operator to the simplicial complex.
+        Args:
+            flow (np.ndarray): Flow on the simplicial complex.
+        Returns:
+            np.ndarray: K-step shifted simplicial complex.
+        """
         lower_shift = self.apply_lower_shifting(flow, steps=steps)
         upper_shift = self.apply_upper_shifting(flow, steps=steps)
         return lower_shift + upper_shift
 
     def get_simplicial_embeddings(self, flow: np.ndarray) -> tuple:
-        """Return harmonic, curl, and gradient embeddings."""
+        """
+        Return harmonic, curl, and gradient embeddings.
+        Args:
+            flow (np.ndarray): Flow on the simplicial complex.
+        Returns:
+            np.ndarray: Simplicial embeddings of the simplicial complex.
+            Harmonic embedding, curl embedding, and gradient embedding.
+        """
         k = 1
         L1 = self.hodge_laplacian_matrix(rank=k).toarray()
         L1U = self.upper_laplacian_matrix(rank=k).toarray()
@@ -367,7 +403,19 @@ class SimplicialComplex:
         component: str = FrequencyComponent.HARMONIC.value,
         tolerance: float = 1e-3,
     ) -> tuple:
-        """Return eigendecomposition of a component."""
+        """
+         Return the eigendecomposition of the simplicial complex.
+        Args:
+            component (str, optional): Component of the eigendecomposition
+            to return. Defaults to "harmonic".
+            tolerance (float, optional): Tolerance for eigenvalues to be
+            considered zero. Defaults to 1e-3.
+        ValueError:
+            If the component is not one of 'harmonic', 'curl', or 'gradient'.
+        Returns:
+            np.ndarray: Eigenvectors of the component.
+            np.ndarray: Eigenvalues of the component.
+        """
         if component == FrequencyComponent.HARMONIC.value:
             L1 = self.hodge_laplacian_matrix(rank=1).toarray()
             u_h, eig_h = get_harmonic_eigenpair(L1, tolerance)
@@ -380,20 +428,39 @@ class SimplicialComplex:
             L1L = self.lower_laplacian_matrix(rank=1).toarray()
             u_g, eig_g = get_gradient_eigenpair(L1L, tolerance)
             return u_g, eig_g
-        raise ValueError("Invalid component. Choose from 'harmonic', 'curl', or 'gradient'.")
+        raise ValueError(
+            "Invalid component. Choose from 'harmonic',"
+            + "'curl', or 'gradient'."
+        )
 
     def get_total_variance(self) -> np.ndarray:
-        """Get the total variance of the SC."""
+        """
+        Get the total variance of the SC.
+        Returns:
+            np.ndarray: The total variance of the SC.
+        """
         laplacian_matrix = self.laplacian_matrix()
         return get_total_variance(laplacian_matrix)
 
     def get_divergence(self, flow: np.ndarray) -> np.ndarray:
-        """Get the divergence of the edge flow."""
+        """
+        Get the divergence of the edge flow.
+        Args:
+            flow (np.ndarray): The edge flow defined over a SC.
+        Returns:
+            np.ndarray: The divergence of the edge flow.
+        """
         B1 = self.incidence_matrix(rank=1)
         return get_divergence(B1, flow)
 
     def get_curl(self, flow: np.ndarray) -> np.ndarray:
-        """Get the curl of the edge flow."""
+        """
+        Get the curl of the edge flow.
+        Args:
+            flow (np.ndarray): The edge flow defined over a SC.
+        Returns:
+            np.ndarray: The curl of the edge flow.
+        """
         B2 = self.incidence_matrix(rank=2)
         return get_curl(B2, flow)
 
@@ -404,7 +471,20 @@ class SimplicialComplex:
         round_fig: bool = True,
         round_sig_fig: int = 2,
     ) -> np.ndarray:
-        """Return the component flow of the simplicial complex using Hodge decomposition."""
+        """
+        Return the component flow of the simplicial complex
+        using the Hodge decomposition.
+        Args:
+            flow (np.ndarray): Flow on the simplicial complex.
+            component (str, optional): Component of the Hodge decomposition.
+            Defaults to FrequencyComponent.GRADIENT.value.
+            round_fig (bool, optional): Round the hodgedecomposition to the
+            Default to True.
+            round_sig_fig (int, optional): Round to significant figure.
+            Defaults to 2.
+        Returns:
+            np.ndarray: Hodge decomposition of the edge flow.
+        """
         B1 = self.incidence_matrix(rank=1)
         B2 = self.incidence_matrix(rank=2)
 
@@ -430,9 +510,13 @@ class SimplicialComplex:
                 round_fig=round_fig,
                 round_sig_fig=round_sig_fig,
             )
-        raise ValueError("Invalid component. Choose from 'harmonic', 'curl', or 'gradient'.")
+        raise ValueError(
+            "Invalid component. Choose from 'harmonic',"
+            + "'curl', or 'gradient'."
+        )
 
-    # Conversions ----------------------------------------------------------
+
+    # Conversions
     def to_cell_complex(self):
         """
         Convert the simplicial complex into a cell complex by detecting larger polygons.
@@ -445,7 +529,7 @@ class SimplicialComplex:
         )
         return cc_builder.to_cell_complex()
 
-    # Utility --------------------------------------------------------------
+    # Utility
     def generate_coordinates(self) -> dict:
         """
         Generate the coordinates of the nodes using spring layout
