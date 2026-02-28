@@ -12,6 +12,12 @@ from pytspl.decomposition.frequency_component import FrequencyComponent
 from pytspl.simplicial_complex import SimplicialComplex
 from pytspl.cell_complex import CellComplex
 
+from matplotlib.patches import FancyArrowPatch
+from matplotlib import transforms
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path
+from matplotlib.patches import Arc, FancyArrow
+
 
 def signed_area(poly_coords):
     x = [p[0] for p in poly_coords]
