@@ -120,6 +120,7 @@ def read_tntp(
     feature_cols = [
         col for col in df.columns if col not in [src_col, dest_col]
     ]
+    feature_cols = feature_cols or []
 
     edge_features = {}
     node_features = {}
@@ -129,14 +130,22 @@ def read_tntp(
                 feature_cols
             ].to_dict()
 
-    builder_cls = SCBuilder if only_sc else CCBuilder
-    return builder_cls(
-        nodes=nodes,
-        edges=edges,
-        node_features=node_features,
-        edge_features=edge_features,
-        simplices=None,
-    )
+    if only_sc:
+        return SCBuilder(
+            nodes=nodes,
+            edges=edges,
+            node_features=node_features,
+            edge_features=edge_features,
+            simplices=None,        # only if SCBuilder supports it
+            # only_2d=only_2d,      # if SCBuilder supports this too
+        )
+    else:
+        return CCBuilder(
+            nodes=nodes,
+            edges=edges,
+            node_features=node_features,
+            edge_features=edge_features,
+        )
 
 
 def read_csv(
@@ -171,6 +180,7 @@ def read_csv(
               node_features, and edge_features.
             - If `only_sc` is False, a CCBuilder initialized with the same inputs.
     """
+    feature_cols = feature_cols or []
     df = pd.read_csv(filename, sep=delimiter)
 
     # get the nodes and edges
@@ -191,14 +201,21 @@ def read_csv(
                 feature_cols
             ].to_dict()
 
-    builder_cls = SCBuilder if only_sc else CCBuilder
-    return builder_cls(
-        nodes=nodes,
-        edges=edges,
-        node_features=node_features,
-        edge_features=edge_features,
-        simplices=None,
-    )
+    if only_sc:
+        return SCBuilder(
+            nodes=nodes,
+            edges=edges,
+            node_features=node_features,
+            edge_features=edge_features,
+            simplices=None,
+        )
+    else:
+        return CCBuilder(
+            nodes=nodes,
+            edges=edges,
+            node_features=node_features,
+            edge_features=edge_features,
+        )
 
 
 def read_B2(B2_filename: str, edges: np.ndarray) -> list:
