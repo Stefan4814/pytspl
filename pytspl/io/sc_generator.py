@@ -1,10 +1,10 @@
 """Module for generating a random simplicial complex."""
 
 import networkx as nx
-import numpy as np
 
 from pytspl.simplicial_complex.scbuilder import SCBuilder
 from pytspl.simplicial_complex.simplicial_complex import SimplicialComplex
+
 
 def generate_random_simplicial_complex(
     num_of_nodes: int,

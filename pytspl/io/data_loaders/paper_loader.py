@@ -14,9 +14,9 @@ def load_paper_data(only_sc: bool = True, only_2d: bool = True) -> tuple:
     and the flow.
 
     Args:
-        only_sc(bool, optional): whether to return the simplicial complex or the cell complex 
+        only_sc(bool, optional): whether to return the simplicial complex or the cell complex
         only_2d (bool, optional): if true (default) build up to triangles; if false, build all simplices.
-    
+
     Returns:
         tuple:
             SimplicialComplex or CellComplex: The simplicial/cell complex of the paper data.

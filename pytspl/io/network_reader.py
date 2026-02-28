@@ -22,6 +22,7 @@ from typing import Union
 from pytspl.simplicial_complex.scbuilder import SCBuilder
 from pytspl.cell_complex.ccbuilder import CCBuilder
 
+
 def _extract_nodes_edges(
     df: pd.DataFrame, src_col: str, dest_col: str, start_index_zero: bool
 ) -> list:
@@ -248,7 +249,10 @@ def read_B2(B2_filename: str, edges: np.ndarray) -> list:
     return triangles
 
 
-def read_B1_B2(B1_filename: str, B2_filename: str, only_sc: bool = True) -> tuple:
+def read_B1_B2(
+        B1_filename: str,
+        B2_filename: str,
+        only_sc: bool = True) -> tuple:
     """
     Read the B1 and B2 incidence matrices.
 
@@ -256,7 +260,7 @@ def read_B1_B2(B1_filename: str, B2_filename: str, only_sc: bool = True) -> tupl
         B1_filename (str): The name of the B1 incidence matrix file.
         B2_filename (str): The name of the B2 incidence matrix file.
         only_sc (bool, optional): If true, returns an SCBuilder else a CCBuilder
-        
+
     Returns:
         SCBuilder: SC builder object to build the simplicial complex.
         list: List of triangles (2-simplices).

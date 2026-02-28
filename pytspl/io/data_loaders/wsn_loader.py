@@ -14,7 +14,7 @@ def load_wsn_data(only_sc: bool = True, only_2d: bool = True) -> tuple:
     Load the water supply network data and return the simplicial complex
     and coordinates.
 
-    Args: 
+    Args:
         only_sc (bool, optional): if true return a simplicial complex, else return a cell complex.
 
     Returns:

@@ -12,19 +12,14 @@ from pytspl.decomposition.frequency_component import FrequencyComponent
 from pytspl.simplicial_complex import SimplicialComplex
 from pytspl.cell_complex import CellComplex
 
-from matplotlib.patches import FancyArrowPatch
-from matplotlib import transforms
-from matplotlib.patches import PathPatch
-from matplotlib.path import Path
-from matplotlib.patches import Arc, FancyArrow
 
 def signed_area(poly_coords):
     x = [p[0] for p in poly_coords]
     y = [p[1] for p in poly_coords]
-    return 0.5 * sum(
-        x[i] * y[(i + 1) % len(poly_coords)] - x[(i + 1) % len(poly_coords)] * y[i]
-        for i in range(len(poly_coords))
-    )
+    return 0.5 * sum(x[i] * y[(i + 1) % len(poly_coords)] -
+                     x[(i + 1) % len(poly_coords)] * y[i]
+                     for i in range(len(poly_coords)))
+
 
 def draw_circular_arrow(ax, center, radius=0.1, angle_deg=0, direction='ccw'):
     """Draw a circular arc with arrowhead at the end, in correct orientation."""
@@ -32,9 +27,19 @@ def draw_circular_arrow(ax, center, radius=0.1, angle_deg=0, direction='ccw'):
     num_points = 100
 
     if direction == 'ccw':
-        theta = np.linspace(np.deg2rad(angle_deg), np.deg2rad(angle_deg + sweep_deg), num_points)
+        theta = np.linspace(
+            np.deg2rad(angle_deg),
+            np.deg2rad(
+                angle_deg +
+                sweep_deg),
+            num_points)
     else:
-        theta = np.linspace(np.deg2rad(angle_deg + sweep_deg), np.deg2rad(angle_deg), num_points)
+        theta = np.linspace(
+            np.deg2rad(
+                angle_deg +
+                sweep_deg),
+            np.deg2rad(angle_deg),
+            num_points)
 
     x = center[0] + radius * np.cos(theta)
     y = center[1] + radius * np.sin(theta)
@@ -43,8 +48,6 @@ def draw_circular_arrow(ax, center, radius=0.1, angle_deg=0, direction='ccw'):
     ax.plot(x, y, color='black', lw=1.2)
 
     # Draw the arrowhead at the end of the arc
-    dx = x[-1] - x[-2]
-    dy = y[-1] - y[-2]
     ax.annotate(
         '',
         xy=(x[-1], y[-1]),
@@ -56,6 +59,7 @@ def draw_circular_arrow(ax, center, radius=0.1, angle_deg=0, direction='ccw'):
             shrinkA=0, shrinkB=0,
         )
     )
+
 
 class SCPlot:
     """Class for plotting simplicial/cell complexes."""
@@ -76,7 +80,7 @@ class SCPlot:
         self.complex = complex
         self.pos = coordinates
         self.only_sc = only_sc
-    
+
     def _faces_2(self):
         # SimplicialComplex: triangles
         if isinstance(self.complex, SimplicialComplex):
@@ -403,7 +407,7 @@ class SCPlot:
             )
 
             ax.add_patch(polygon)
-            
+
             area = signed_area(poly_coords)
             direction = 'ccw' if area > 0 else 'cw'
 
@@ -426,7 +430,6 @@ class SCPlot:
                     angle_deg=60,
                     direction=direction
                 )
-
 
     def _calculate_edge_label_position(
         self, src: tuple, dest: tuple, offset: float
@@ -793,7 +796,8 @@ class SCPlot:
         """
         viz_per_row = 3
 
-        U, eigenvals = self.complex.get_component_eigenpair(component=component)
+        U, eigenvals = self.complex.get_component_eigenpair(
+            component=component)
 
         # if no eigenvector indices are provided, draw all eigenvectors
         if len(eigenvector_indices) == 0:

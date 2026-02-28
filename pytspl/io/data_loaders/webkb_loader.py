@@ -9,6 +9,7 @@ WEBKB_DATA_FOLDER = pkg_resources.resource_filename(
     "pytspl", "data/webkb"
 )
 
+
 def load_webkb_data() -> dict[str, nx.Graph]:
     """
     Load the raw hyperlink graphs for all three WebKB subdatasets.
@@ -38,14 +39,17 @@ def load_webkb_data() -> dict[str, nx.Graph]:
             edge_path,
             nodetype=int,
             data=False,
-            # create_using=nx.DiGraph()            
+            # create_using=nx.DiGraph()
         )
         graphs[subset] = G
 
     return graphs
 
 
-def _load_webkb_subset(subset: str, only_sc: bool = True, only_2d: bool = True):
+def _load_webkb_subset(
+        subset: str,
+        only_sc: bool = True,
+        only_2d: bool = True):
     """
     Build and return a (simplicial or cell) complex for one WebKB split.
 

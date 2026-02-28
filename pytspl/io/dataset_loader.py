@@ -9,7 +9,7 @@ from .data_loaders.transportation_loader import (
     load_transportation_dataset,
 )
 from .data_loaders.wsn_loader import load_wsn_data
-from .data_loaders.webkb_loader import load_webkb_data, _load_webkb_subset
+from .data_loaders.webkb_loader import _load_webkb_subset
 
 DATASETS = {
     "paper": load_paper_data,
@@ -40,7 +40,10 @@ def list_datasets() -> list:
     return transportation_datasets + other_datasets
 
 
-def load_dataset(dataset: str, only_sc: bool = True, only_2d: bool = True) -> tuple:
+def load_dataset(
+        dataset: str,
+        only_sc: bool = True,
+        only_2d: bool = True) -> tuple:
     """
     Load the dataset and return the simplicial complex
     and coordinates.
@@ -69,7 +72,8 @@ def load_dataset(dataset: str, only_sc: bool = True, only_2d: bool = True) -> tu
         )
 
     if dataset in DATASETS:
-        complex, coordinates, flow = DATASETS[dataset](only_sc=only_sc, only_2d=only_2d)
+        complex, coordinates, flow = DATASETS[dataset](
+            only_sc=only_sc, only_2d=only_2d)
     else:
         complex, coordinates, flow = load_transportation_dataset(
             dataset=dataset, only_sc=only_sc, only_2d=only_2d
@@ -78,8 +82,6 @@ def load_dataset(dataset: str, only_sc: bool = True, only_2d: bool = True) -> tu
     assert complex is not None
     assert coordinates is not None
     assert flow is not None
-
-
 
     # each node should have a coordinate
     assert len(complex.nodes) == len(coordinates)

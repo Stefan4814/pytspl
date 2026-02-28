@@ -92,7 +92,10 @@ def load_flow_transportation(dataset: str, edges: list) -> pd.DataFrame:
     return flow_dict
 
 
-def load_transportation_dataset(dataset: str, only_sc: bool = True, only_2d: bool = True) -> tuple:
+def load_transportation_dataset(
+        dataset: str,
+        only_sc: bool = True,
+        only_2d: bool = True) -> tuple:
     """
     Load the transportation dataset and return the simplicial complex
     and coordinates.
@@ -128,7 +131,7 @@ def load_transportation_dataset(dataset: str, only_sc: bool = True, only_2d: boo
         # index starts at 1
         start_index_zero=start_index_zero,
     )
-    
+
     if only_sc:
         complex = builder.to_simplicial_complex(only_2d=only_2d)
     else:
@@ -173,7 +176,8 @@ def load_chicago_sketch(only_sc: bool = True, only_2d: bool = True) -> tuple:
     builder, triangles = read_B1_B2(B1_dataset_path, B2_dataset_path)
 
     if only_sc:
-        complex = builder.to_simplicial_complex(triangles=triangles, only_2d=only_2d)
+        complex = builder.to_simplicial_complex(
+            triangles=triangles, only_2d=only_2d)
     else:
         complex = builder.to_cell_complex()
 

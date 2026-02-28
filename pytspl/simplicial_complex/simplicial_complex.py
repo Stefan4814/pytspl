@@ -1,6 +1,5 @@
 """Data structure for a simplicial complex that supports arbitrary dimension."""
 
-from itertools import combinations
 from typing import Hashable, Iterable
 
 import numpy as np
@@ -63,18 +62,18 @@ class SimplicialComplex:
 
         if simplices is not None:
             simplices_by_dim = self._build_from_mapping(simplices)
-            original_simplices = [
-                [tuple(s) if not isinstance(s, tuple) else s for s in simplices_by_dim[0]]
-            ]
+            original_simplices = [[tuple(s) if not isinstance(
+                s, tuple) else s for s in simplices_by_dim[0]]]
             for dim_list in simplices_by_dim[1:]:
-                original_simplices.append([list(s) if isinstance(s, tuple) else s for s in dim_list])
+                original_simplices.append(
+                    [list(s) if isinstance(s, tuple) else s for s in dim_list])
         else:
             simplices_by_dim = self._build_from_parts(nodes, edges, triangles)
             original_simplices = [
                 [(n,) for n in simplices_by_dim[0]],
                 [tuple(e) for e in simplices_by_dim[1]],
-                [list(t) for t in simplices_by_dim[2]] if len(simplices_by_dim) > 2 else [],
-            ]
+                [list(t) for t in simplices_by_dim[2]]
+                if len(simplices_by_dim) > 2 else [],]
 
         self._simplices_by_dim = simplices_by_dim
         self._original_simplices_by_dim = original_simplices
@@ -83,7 +82,8 @@ class SimplicialComplex:
         self.edge_features = edge_features
 
         self.nodes = [s[0] for s in self._simplices_by_dim[0]]
-        self.edges = list(self._simplices_by_dim[1]) if self.max_dim >= 1 else []
+        self.edges = list(
+            self._simplices_by_dim[1]) if self.max_dim >= 1 else []
         self.triangles = (
             list(self._original_simplices_by_dim[2])
             if self.max_dim >= 2 and len(self._original_simplices_by_dim) > 2
@@ -109,7 +109,8 @@ class SimplicialComplex:
             simplices_by_dim.pop()
         return self._ensure_closure(simplices_by_dim)
 
-    def _build_from_mapping(self, simplices: dict[int, list]) -> list[list[tuple]]:
+    def _build_from_mapping(
+            self, simplices: dict[int, list]) -> list[list[tuple]]:
         '''Build simplices from a mapping of dimension to simplices'''
         max_dim = max(simplices.keys())
         simplices_by_dim: list[list[tuple]] = []
@@ -120,7 +121,7 @@ class SimplicialComplex:
             else:
                 simplices_by_dim.append([tuple(s) for s in dim_simplices])
         return self._ensure_closure(simplices_by_dim)
-    
+
     def _validate_legacy_args(self, nodes, edges, triangles):
         '''Validate that legacy nodes/edges/triangles are consistent with simplices if both are provided'''
         # nodes
@@ -132,33 +133,33 @@ class SimplicialComplex:
 
         # edges (ignore orientation)
         if edges:
-            def undirected(e): 
+            def undirected(e):
                 u, v = e
                 return (u, v) if u <= v else (v, u)
 
-            if {undirected(e) for e in edges} != {undirected(e) for e in self.edges}:
+            if {undirected(e) for e in edges} != {undirected(e)
+                                                  for e in self.edges}:
                 raise ValueError(
                     "Inconsistent inputs: `simplices` implies a different edge set than `edges` "
-                    "(orientation is ignored in this check)."
-                )
+                    "(orientation is ignored in this check).")
 
         # triangles (ignore orientation) only if given
         if triangles:
-            def tri_key(t): 
+            def tri_key(t):
                 a, b, c = t
                 return tuple(sorted((a, b, c)))
 
             # self.triangles might be list-of-lists; normalize
             implied_tris = {tri_key(t) for t in self.triangles}
-            given_tris   = {tri_key(t) for t in triangles}
+            given_tris = {tri_key(t) for t in triangles}
 
             if given_tris != implied_tris:
                 raise ValueError(
                     "Inconsistent inputs: `simplices` implies a different triangle set than `triangles` "
-                    "(orientation is ignored in this check)."
-                )
+                    "(orientation is ignored in this check).")
 
-    def _ensure_closure(self, simplices_by_dim: list[list[tuple]]) -> list[list[tuple]]:
+    def _ensure_closure(
+            self, simplices_by_dim: list[list[tuple]]) -> list[list[tuple]]:
         """
         Ensure all faces exist for each simplex. Missing faces are appended
         with the induced orientation.
@@ -179,10 +180,13 @@ class SimplicialComplex:
         for k in range(max_dim, 0, -1):
             faces = set(simplices_by_dim[k - 1])
             # undirected keys only for edges (1-simplices)
-            undirected_faces = {tuple(sorted(f)) for f in faces} if (k - 1) == 1 else set()
+            undirected_faces = {
+                tuple(
+                    sorted(f)) for f in faces} if (
+                k - 1) == 1 else set()
             for simplex in simplices_by_dim[k]:
                 for i in range(len(simplex)):
-                    face = simplex[:i] + simplex[i + 1 :]
+                    face = simplex[:i] + simplex[i + 1:]
 
                     if (k - 1) == 1:
                         key = tuple(sorted(face))
@@ -214,10 +218,10 @@ class SimplicialComplex:
             Bk = np.zeros((len(lower), len(upper)))
             for col, simplex in enumerate(upper):
                 for i in range(len(simplex)):
-                    face = simplex[:i] + simplex[i + 1 :]
+                    face = simplex[:i] + simplex[i + 1:]
                     sign = (-1) ** i
                     row = lower_index.get(face)
-                    
+
                     if row is None and len(face) == 2:
                         rev = (face[1], face[0])
                         row = lower_index.get(rev)
@@ -225,8 +229,9 @@ class SimplicialComplex:
                             sign *= -1
 
                     if row is None:
-                        raise ValueError(f"Missing face {face} for simplex {simplex}")
-                    
+                        raise ValueError(
+                            f"Missing face {face} for simplex {simplex}")
+
                     Bk[row, col] += sign
             incidence[k] = Bk
         return incidence
@@ -284,7 +289,8 @@ class SimplicialComplex:
         edge_features = self.edge_features
         if name:
             try:
-                return {key: value[name] for key, value in edge_features.items()}
+                return {key: value[name]
+                        for key, value in edge_features.items()}
             except KeyError:
                 raise KeyError(
                     f"Edge feature {name} does not exist in the simplicial complex."
@@ -304,7 +310,7 @@ class SimplicialComplex:
         simplex = tuple(simplex)
         if len(simplex) == 1:
             return []
-        faces = [simplex[:i] + simplex[i + 1 :] for i in range(len(simplex))]
+        faces = [simplex[:i] + simplex[i + 1:] for i in range(len(simplex))]
         return sorted(faces)
 
     # Matrices
@@ -339,7 +345,8 @@ class SimplicialComplex:
         if rank == 0:
             return self.tocsr(np.ones(len(self.nodes), dtype=float))
         if rank < 0 or rank > self.max_dim:
-            raise ValueError("Rank cannot be larger than the dimension of the complex.")
+            raise ValueError(
+                "Rank cannot be larger than the dimension of the complex.")
         matrix = self._incidence_matrices.get(rank)
         if matrix is None:
             raise ValueError(f"No incidence matrix of rank {rank} available.")
@@ -363,7 +370,8 @@ class SimplicialComplex:
     def lower_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
         """Compute the lower Laplacian matrix."""
         if rank < 1 or rank > self.max_dim:
-            raise ValueError("Rank must be at least 1 and not exceed the max dimension.")
+            raise ValueError(
+                "Rank must be at least 1 and not exceed the max dimension.")
         Bk = self.incidence_matrix(rank=rank)
         return Bk.T @ Bk
 
@@ -389,7 +397,10 @@ class SimplicialComplex:
         return L_lower + L_upper
 
     # Shifting and embeddings
-    def apply_lower_shifting(self, flow: np.ndarray, steps: int = 1) -> np.ndarray:
+    def apply_lower_shifting(
+            self,
+            flow: np.ndarray,
+            steps: int = 1) -> np.ndarray:
         """
         Apply the lower shifting operator to the simplicial complex.
         Args:
@@ -404,7 +415,10 @@ class SimplicialComplex:
             return L_lower @ flow
         return L_lower @ (L_lower @ flow)
 
-    def apply_upper_shifting(self, flow: np.ndarray, steps: int = 1) -> np.ndarray:
+    def apply_upper_shifting(
+            self,
+            flow: np.ndarray,
+            steps: int = 1) -> np.ndarray:
         """
         Apply the upper shifting operator to the simplicial complex.
         Args:
@@ -419,7 +433,10 @@ class SimplicialComplex:
             return L_upper @ flow
         return L_upper @ (L_upper @ flow)
 
-    def apply_k_step_shifting(self, flow: np.ndarray, steps: int = 2) -> np.ndarray:
+    def apply_k_step_shifting(
+            self,
+            flow: np.ndarray,
+            steps: int = 2) -> np.ndarray:
         """
         Apply the k-step shifting operator to the simplicial complex.
         Args:
@@ -570,7 +587,6 @@ class SimplicialComplex:
             "Invalid component. Choose from 'harmonic',"
             + "'curl', or 'gradient'."
         )
-
 
     # Conversions
     def to_cell_complex(self):

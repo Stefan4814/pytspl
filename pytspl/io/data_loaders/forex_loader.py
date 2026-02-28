@@ -32,7 +32,8 @@ def load_forex_data(only_sc: bool = True, only_2d: bool = True) -> tuple:
     )
 
     if only_sc:
-        complex = builder.to_simplicial_complex(triangles=triangles, only_2d=only_2d)
+        complex = builder.to_simplicial_complex(
+            triangles=triangles, only_2d=only_2d)
     else:
         complex = builder.to_cell_complex()
 
