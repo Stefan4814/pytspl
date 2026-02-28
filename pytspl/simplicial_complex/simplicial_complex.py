@@ -178,12 +178,23 @@ class SimplicialComplex:
         max_dim = len(simplices_by_dim) - 1
         for k in range(max_dim, 0, -1):
             faces = set(simplices_by_dim[k - 1])
+            # undirected keys only for edges (1-simplices)
+            undirected_faces = {tuple(sorted(f)) for f in faces} if (k - 1) == 1 else set()
             for simplex in simplices_by_dim[k]:
                 for i in range(len(simplex)):
                     face = simplex[:i] + simplex[i + 1 :]
-                    if face not in faces:
+
+                    if (k - 1) == 1:
+                        key = tuple(sorted(face))
+                        if key in undirected_faces:
+                            continue
                         simplices_by_dim[k - 1].append(face)
                         faces.add(face)
+                        undirected_faces.add(key)
+                    else:
+                        if face not in faces:
+                            simplices_by_dim[k - 1].append(face)
+                            faces.add(face)
         # de-duplicate while preserving order
         simplices_by_dim = [_dedupe(dim_list) for dim_list in simplices_by_dim]
         # keep nodes ordered if they are sortable
@@ -205,10 +216,17 @@ class SimplicialComplex:
                 for i in range(len(simplex)):
                     face = simplex[:i] + simplex[i + 1 :]
                     sign = (-1) ** i
-                    try:
-                        row = lower_index[face]
-                    except KeyError:
+                    row = lower_index.get(face)
+                    
+                    if row is None and len(face) == 2:
+                        rev = (face[1], face[0])
+                        row = lower_index.get(rev)
+                        if row is not None:
+                            sign *= -1
+
+                    if row is None:
                         raise ValueError(f"Missing face {face} for simplex {simplex}")
+                    
                     Bk[row, col] += sign
             incidence[k] = Bk
         return incidence
