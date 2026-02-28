@@ -62,13 +62,13 @@ class SCPlot:
 
     def __init__(
         self,
-        complex: CellComplex,
+        complex: SimplicialComplex | CellComplex,
         coordinates: dict = None,
         only_sc: bool = True
     ) -> None:
         """
         Args:
-            complex (CellComplex): The cell complex
+            complex: The cell complex
             complex network object.
             coordinates (dict): Dict of positions
             plot_sc (bool): whether to plot only simplicial complexes or all the cell complexes
@@ -76,6 +76,13 @@ class SCPlot:
         self.complex = complex
         self.pos = coordinates
         self.only_sc = only_sc
+    
+    def _faces_2(self):
+        # SimplicialComplex: triangles
+        if isinstance(self.complex, SimplicialComplex):
+            return self.complex.triangles
+        # CellComplex: polygons
+        return self.complex.polygons
 
     def _init_axes(self, ax) -> dict:
         """
@@ -379,10 +386,7 @@ class SCPlot:
             arrows=directed,
         )
 
-        B2 = self.complex.compute_B2()
-        edge_index = {edge: i for i, edge in enumerate(self.complex.edges)}
-
-        for j, poly in enumerate(self.complex.polygons):
+        for j, poly in enumerate(self._faces_2()):
             if self.only_sc and len(poly) != 3:
                 continue  # skip non-triangles in simplicial mode
 
