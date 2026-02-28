@@ -82,13 +82,15 @@ class SimplicialComplex:
         self.node_features = node_features
         self.edge_features = edge_features
 
-        self.nodes = list(self._simplices_by_dim[0])
+        self.nodes = [s[0] for s in self._simplices_by_dim[0]]
         self.edges = list(self._simplices_by_dim[1]) if self.max_dim >= 1 else []
         self.triangles = (
             list(self._original_simplices_by_dim[2])
             if self.max_dim >= 2 and len(self._original_simplices_by_dim) > 2
             else []
         )
+        if simplices is not None:
+            self._validate_legacy_args(nodes, edges, triangles)
 
         self._incidence_matrices = self._compute_incidence_matrices()
 
@@ -118,6 +120,43 @@ class SimplicialComplex:
             else:
                 simplices_by_dim.append([tuple(s) for s in dim_simplices])
         return self._ensure_closure(simplices_by_dim)
+    
+    def _validate_legacy_args(self, nodes, edges, triangles):
+        '''Validate that legacy nodes/edges/triangles are consistent with simplices if both are provided'''
+        # nodes
+        if nodes:
+            if set(nodes) != set(self.nodes):
+                raise ValueError(
+                    "Inconsistent inputs: `simplices` implies a different node set than `nodes`."
+                )
+
+        # edges (ignore orientation)
+        if edges:
+            def undirected(e): 
+                u, v = e
+                return (u, v) if u <= v else (v, u)
+
+            if {undirected(e) for e in edges} != {undirected(e) for e in self.edges}:
+                raise ValueError(
+                    "Inconsistent inputs: `simplices` implies a different edge set than `edges` "
+                    "(orientation is ignored in this check)."
+                )
+
+        # triangles (ignore orientation) only if given
+        if triangles:
+            def tri_key(t): 
+                a, b, c = t
+                return tuple(sorted((a, b, c)))
+
+            # self.triangles might be list-of-lists; normalize
+            implied_tris = {tri_key(t) for t in self.triangles}
+            given_tris   = {tri_key(t) for t in triangles}
+
+            if given_tris != implied_tris:
+                raise ValueError(
+                    "Inconsistent inputs: `simplices` implies a different triangle set than `triangles` "
+                    "(orientation is ignored in this check)."
+                )
 
     def _ensure_closure(self, simplices_by_dim: list[list[tuple]]) -> list[list[tuple]]:
         """
@@ -177,9 +216,8 @@ class SimplicialComplex:
     # Basic properties
     def print_summary(self):
         """Print the summary of the simplicial complex."""
-        print(f"Num. of nodes: {len(self.nodes)}")
-        print(f"Num. of edges: {len(self.edges)}")
-        print(f"Num. of triangles: {len(self.triangles)}")
+        for k, simplices in enumerate(self._simplices_by_dim):
+            print(f"Num. of {k}-simplices: {len(simplices)}")
         print(f"Shape: {self.shape}")
         print(f"Max Dimension: {self.max_dim}")
 
