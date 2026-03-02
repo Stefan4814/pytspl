@@ -4,6 +4,7 @@
 from .data_loaders.forex_loader import load_forex_data
 from .data_loaders.lastfm_loader import load_lastfm_1k_artist
 from .data_loaders.paper_loader import load_paper_data
+from .data_loaders.scnn_loader import load_scnn_paper
 from .data_loaders.transportation_loader import (
     list_transportation_datasets,
     load_transportation_dataset,
@@ -25,6 +26,7 @@ DATASETS = {
         "wisconsin", only_sc=only_sc, only_2d=only_2d
     ),
     "wsn": load_wsn_data,
+    "scnn_paper": load_scnn_paper,
 }
 
 
