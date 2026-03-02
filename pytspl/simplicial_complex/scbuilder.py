@@ -5,7 +5,14 @@ The 2-simplices can be added in three ways:
     - Triangles passed as an argument.
     - All triangles in the simplicial complex.
     - Triangles based on a condition e.g. distance.
+
+This builder also supports:
+- Directly supplying higher-dimensional simplices through the ``simplices`` mapping
+  (dim -> list of simplices). If provided, triangle inference is skipped.
+- Automatic construction of all cliques (all simplices) when ``only_2d`` is False.
 """
+
+from typing import Optional
 
 import networkx as nx
 
@@ -22,6 +29,8 @@ class SCBuilder:
         edges: list,
         node_features: dict = {},
         edge_features: dict = {},
+        simplices: Optional[dict[int, list]] = None,
+        simplex_features: Optional[dict[int, dict]] = None,
     ):
         """Initialize the SCBuilder object."""
         # 0-simplices - nodes
@@ -32,6 +41,10 @@ class SCBuilder:
         # node and edge features
         self.node_features = node_features
         self.edge_features = edge_features
+        # optional higher-dimensional simplices
+        self.simplices = simplices
+        # optional per-dimension simplex features
+        self.simplex_features = simplex_features
 
     def triangles(self) -> list:
         """
@@ -83,12 +96,40 @@ class SCBuilder:
 
         return conditional_tri
 
+    def _all_simplices(self) -> dict[int, list]:
+        """
+        Enumerate all cliques in the underlying graph and return a simplices
+        mapping keyed by dimension.
+
+        Returns:
+            dict[int, list]: Mapping of dimension -> list of simplices.
+        """
+        g = nx.Graph()
+        g.add_nodes_from(self.nodes)
+        g.add_edges_from(self.edges)
+
+        simplices: dict[int, list] = {
+            0: [(n,) for n in self.nodes],
+            1: [tuple(e) for e in self.edges],
+        }
+
+        for clique in nx.enumerate_all_cliques(g):
+            if len(clique) <= 2:
+                continue
+            dim = len(clique) - 1
+            simplex = tuple(sorted(clique))
+            simplices.setdefault(dim, []).append(simplex)
+        return simplices
+
     def to_simplicial_complex(
         self,
         condition: str = "all",
         dist_col_name: str = "distance",
         dist_threshold: float = 1.5,
         triangles=None,
+        simplices: Optional[dict[int, list]] = None,
+        simplex_features: Optional[dict[int, dict]] = None,
+        only_2d: bool = True,
     ) -> SimplicialComplex:
         """
         Convert the graph to a simplicial complex using the given condition
@@ -106,10 +147,40 @@ class SCBuilder:
             the distance.
             dist_threshold (float, optional): Distance threshold to consider
             for simplices. Defaults to 1.5.
+            simplices (dict[int, list], optional): Explicit mapping of
+            dimension -> simplices to build higher-dimensional complexes.
+            If provided, triangle inference is skipped.
+            simplex_features (dict[int, dict], optional): Mapping of dimension
+                -> {simplex: feature} to attach features to any dimension.
+                Passed through to SimplicialComplex.
+            only_2d (bool, optional): If True (default), restrict to up to
+            triangles; if False, construct all simplices via cliques.
 
         Returns:
             SimplicialComplex: Simplicial complex network.
         """
+        if simplices is None and self.simplices is not None:
+            simplices = self.simplices
+        if simplex_features is None and self.simplex_features is not None:
+            simplex_features = self.simplex_features
+
+        if simplices is not None:
+            return SimplicialComplex(
+                simplices=simplices,
+                node_features=self.node_features,
+                edge_features=self.edge_features,
+                simplex_features=simplex_features,
+            )
+
+        if not only_2d:
+            simplices = self._all_simplices()
+            return SimplicialComplex(
+                simplices=simplices,
+                node_features=self.node_features,
+                edge_features=self.edge_features,
+                simplex_features=simplex_features,
+            )
+
         if triangles is None:
             if condition == "all":
                 # add all 2-simplices
@@ -127,6 +198,7 @@ class SCBuilder:
             triangles=triangles,
             node_features=self.node_features,
             edge_features=self.edge_features,
+            simplex_features=simplex_features,
         )
 
         return sc

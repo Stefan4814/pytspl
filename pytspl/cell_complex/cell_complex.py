@@ -1,11 +1,10 @@
-from itertools import combinations
-from typing import Hashable, Iterable
-
 import numpy as np
 from scipy.sparse import csr_matrix
 
+
 class CellComplex:
     """Data structure class for cell complexes."""
+
     def __init__(
         self,
         nodes: list = [],
@@ -56,7 +55,7 @@ class CellComplex:
             node_features=self.node_features,
             edge_features=self.edge_features,
         )
-    
+
     def compute_B1(self):
         """Compute node-to-edge incidence matrix B1."""
         num_nodes = len(self.nodes)
@@ -64,10 +63,10 @@ class CellComplex:
         B1 = np.zeros((num_nodes, num_edges))
 
         for j, (u, v) in enumerate(self.edges):
-            B1[u, j] = -1 
-            B1[v, j] = 1   
+            B1[u, j] = -1
+            B1[v, j] = 1
         return B1
-    
+
     def compute_B2(self):
         """Compute edge-to-polygon incidence matrix B2."""
         num_polygons = len(self.polygons)
@@ -124,7 +123,7 @@ class CellComplex:
             csr_matrix: Compressed Sparse Row matrix.
         """
         return csr_matrix(matrix, dtype=float)
-    
+
     def incidence_matrix(self, rank: int) -> csr_matrix:
         """
         Compute the incidence matrix of the cell complex.
@@ -155,7 +154,7 @@ class CellComplex:
         """
         B1 = self.tocsr(self.B1)
         return B1 @ B1.T
-    
+
     def lower_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
         """
         Compute the lower Laplacian matrix of the cell complex.
@@ -177,7 +176,7 @@ class CellComplex:
             return B2.T @ B2
         else:
             raise ValueError("Rank must be either 1 or 2.")
-        
+
     def upper_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
         """
         Compute the upper Laplacian matrix of the cell complex.
@@ -198,7 +197,7 @@ class CellComplex:
             return B2 @ B2.T
         else:
             raise ValueError("Rank must be either 0 or 1.")
-        
+
     def hodge_laplacian_matrix(self, rank: int = 1) -> csr_matrix:
         """
         Compute the Hodge Laplacian matrix of the cell complex.
@@ -220,7 +219,6 @@ class CellComplex:
             ) + self.upper_laplacian_matrix(rank=rank)
         else:
             raise ValueError("Rank must be between 0 and 2.")
-
 
     def average_node_degree(self) -> float:
         from collections import Counter
@@ -249,7 +247,6 @@ class CellComplex:
         """How many polygons each edge appears in."""
         from collections import defaultdict
 
-        edge_index = {tuple(sorted(edge)): 0 for edge in self.edges}
         edge_counts = defaultdict(int)
 
         for polygon in self.polygons:
@@ -260,7 +257,7 @@ class CellComplex:
                 edge_counts[edge] += 1
 
         return dict(edge_counts)
-       
+
     def print_summary(self):
         """
         Print the summary of the cell complex.
@@ -268,6 +265,3 @@ class CellComplex:
         print(f"Num. of nodes: {len(self.nodes)}")
         print(f"Num. of edges: {len(self.edges)}")
         print(f"Num. of triangles: {len(self.polygons)}")
-    
-    
-    

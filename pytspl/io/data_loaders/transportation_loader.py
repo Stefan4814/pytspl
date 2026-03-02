@@ -92,7 +92,10 @@ def load_flow_transportation(dataset: str, edges: list) -> pd.DataFrame:
     return flow_dict
 
 
-def load_transportation_dataset(dataset: str, only_sc: bool = True) -> tuple:
+def load_transportation_dataset(
+        dataset: str,
+        only_sc: bool = True,
+        only_2d: bool = True) -> tuple:
     """
     Load the transportation dataset and return the simplicial complex
     and coordinates.
@@ -100,6 +103,7 @@ def load_transportation_dataset(dataset: str, only_sc: bool = True) -> tuple:
     Args:
         dataset (str): The name of the dataset.
         only_sc (bool, optional): if true return a simplicial complex, else return a cell complex.
+        only_2d (bool, optional): if true (default) build up to triangles; if false, build all simplices.
 
     Returns:
         tuple:
@@ -110,7 +114,7 @@ def load_transportation_dataset(dataset: str, only_sc: bool = True) -> tuple:
             exist, an empty dictionary is returned.
     """
     if dataset == "chicago-sketch":
-        return load_chicago_sketch()
+        return load_chicago_sketch(only_sc=only_sc, only_2d=only_2d)
 
     start_index_zero = False
 
@@ -127,9 +131,9 @@ def load_transportation_dataset(dataset: str, only_sc: bool = True) -> tuple:
         # index starts at 1
         start_index_zero=start_index_zero,
     )
-    
+
     if only_sc:
-        complex = builder.to_simplicial_complex()
+        complex = builder.to_simplicial_complex(only_2d=only_2d)
     else:
         complex = builder.to_cell_complex()
 
@@ -153,12 +157,13 @@ def load_transportation_dataset(dataset: str, only_sc: bool = True) -> tuple:
     return complex, coordinates, flow_dict
 
 
-def load_chicago_sketch(only_sc: bool = True) -> tuple:
+def load_chicago_sketch(only_sc: bool = True, only_2d: bool = True) -> tuple:
     """
     Load the Chicago sketch dataset straight from the files.
 
     Args:
         only_sc (bool, optional): if true return a simplicial complex, else return a cell complex.
+        only_2d (bool, optional): if true (default) build up to triangles; if false, build all simplices.
     Returns:
         tuple:
             SimplicialComplex or CellComplex: The simplicial/cell complex of the dataset.
@@ -171,7 +176,8 @@ def load_chicago_sketch(only_sc: bool = True) -> tuple:
     builder, triangles = read_B1_B2(B1_dataset_path, B2_dataset_path)
 
     if only_sc:
-        complex = builder.to_simplicial_complex(triangles=triangles)
+        complex = builder.to_simplicial_complex(
+            triangles=triangles, only_2d=only_2d)
     else:
         complex = builder.to_cell_complex()
 

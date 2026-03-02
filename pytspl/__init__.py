@@ -16,6 +16,8 @@ from pytspl.io import (
     read_tntp,
 )
 
+from pytspl.simplicial_complex import SimplicialComplex
+
 # plotting module
 from pytspl.plot import SCPlot
 

@@ -8,6 +8,7 @@ from gensim.models import Word2Vec
 
 from pytspl.cell_complex import CellComplex
 
+
 def _k_cell_adjacency(
     cc: CellComplex,
     k: int,
@@ -35,7 +36,8 @@ def _k_cell_adjacency(
         csr_matrix of shape (N_k, N_k) where N_k is the number of k-cells.
     """
     if k < 0 or k > 2:
-        raise ValueError("k must be in {0, 1, 2} for this CellComplex implementation.")
+        raise ValueError(
+            "k must be in {0, 1, 2} for this CellComplex implementation.")
 
     # Number of k-cells
     if k == 0:
@@ -60,18 +62,19 @@ def _k_cell_adjacency(
         if m == 0:
             return csr_matrix((0, 0), dtype=float)
 
-        # Absolute values remove orientation so adjacency counts remain non-negative
+        # Absolute values remove orientation so adjacency counts remain
+        # non-negative
         B1 = np.abs(cc.B1)  # shape: (num_nodes, num_edges)
         B2 = np.abs(cc.B2)  # shape: (num_edges, num_polygons)
 
-        # lower adjacency: edges sharing a node 
+        # lower adjacency: edges sharing a node
         # (i,j) entry is number of common incident nodes (0, 1, or 2)
         A_down = B1.T @ B1  # shape (m, m)
 
-        # upper adjacency: edges sharing a polygon 
+        # upper adjacency: edges sharing a polygon
         # (i,j) entry is number of common polygons
         if B2.size > 0:
-            A_up = B2 @ B2.T  
+            A_up = B2 @ B2.T
         else:
             A_up = np.zeros((m, m))
 
@@ -94,7 +97,7 @@ def _k_cell_adjacency(
 
         return csr_matrix(A)
 
-    else:  
+    else:
         p = len(cc.polygons)
         if p == 0:
             return csr_matrix((0, 0), dtype=float)
@@ -102,7 +105,7 @@ def _k_cell_adjacency(
         B2 = np.abs(cc.B2)  # shape: (num_edges, num_polygons)
 
         # lower adjacency for polygons: polygons sharing an edge
-        A_down = B2.T @ B2 
+        A_down = B2.T @ B2
 
         # no upper adjacency (no 3-cells)
         A = A_down
@@ -122,6 +125,7 @@ def _k_cell_adjacency(
                 A = (A > 0).astype(float)
 
         return csr_matrix(A)
+
 
 def assemble(
     cc: CellComplex,
@@ -151,13 +155,14 @@ def assemble(
     assert scheme in ["uniform", "uniform-lazy", "uniform-multicount"]
     if scheme == "uniform-lazy":
         if laziness is None:
-            raise ValueError("laziness must be provided for scheme 'uniform-lazy'.")
+            raise ValueError(
+                "laziness must be provided for scheme 'uniform-lazy'.")
         if laziness < 0.0 or laziness > 1.0:
             raise ValueError("laziness must be in [0, 1].")
 
     # Build adjacency with or without multiplicity
     multicount = (scheme == "uniform-multicount")
-    A = _k_cell_adjacency(cc, k, multicount=multicount)  
+    A = _k_cell_adjacency(cc, k, multicount=multicount)
 
     N = A.shape[0]
     if N == 0:
@@ -169,8 +174,8 @@ def assemble(
     data: List[float] = []
 
     for i in range(N):
-        row = A.getrow(i)             
-        w = row.toarray().ravel()     
+        row = A.getrow(i)
+        w = row.toarray().ravel()
 
         if scheme == "uniform-lazy":
             # Non-self neighbors total weight (if multicount) or count
@@ -187,7 +192,8 @@ def assemble(
 
             # Each neighbor gets (1 - laziness) * (w_j / total)
             probs = np.zeros_like(w)
-            probs[w_no_self > 0] = (1.0 - laziness) * (w_no_self[w_no_self > 0] / total)
+            probs[w_no_self > 0] = (1.0 - laziness) * \
+                (w_no_self[w_no_self > 0] / total)
             probs[i] = laziness
 
         else:
@@ -220,6 +226,7 @@ def assemble(
 
     P = csr_matrix((data, (row_inds, col_inds)), shape=(N, N), dtype=float)
     return P
+
 
 def walk(start_cell: int, walk_length: int, P: csr_matrix) -> List[int]:
     """
@@ -290,6 +297,7 @@ def RandomWalks(
     np.random.shuffle(walks)
     return walks
 
+
 def save_random_walks(walks: List[List[int]], filename: str) -> None:
     """
     Save random walks to a text file, one walk per line as comma-separated ints.
@@ -319,6 +327,7 @@ def load_walks(filename: str) -> List[List[int]]:
             walks.append(steps)
     return walks
 
+
 def Embedding(
     walks: List[List[int]],
     emb_dim: int,
@@ -344,16 +353,17 @@ def Embedding(
 
     model = Word2Vec(
         sentences=walks_str,
-        vector_size=emb_dim,   
+        vector_size=emb_dim,
         window=3,
         min_count=0,
-        sg=1,                  
+        sg=1,
         workers=1,
         epochs=epochs,
     )
     if filename is not None:
         model.save(filename)
     return model
+
 
 def _num_k_cells(cc: CellComplex, k: int) -> int:
     """

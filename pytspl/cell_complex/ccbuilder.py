@@ -20,8 +20,7 @@ class CCBuilder:
         # node and edge features
         self.node_features = node_features
         self.edge_features = edge_features
-    
-    
+
     def polygons(self) -> list:
         """
         Get a list of polygons (cycles) in the undirected graph.
@@ -34,7 +33,8 @@ class CCBuilder:
         g.add_edges_from(self.edges)
 
         # Find all fundamental cycles (basis cycles)
-        all_cycles = nx.cycle_basis(g)  # Returns a list of cycles (each cycle is a list of nodes)
+        # Returns a list of cycles (each cycle is a list of nodes)
+        all_cycles = nx.cycle_basis(g)
 
         # Sort nodes within each cycle and store as tuples to ensure uniqueness
         unique_cycles = {tuple((cycle)) for cycle in all_cycles}
@@ -42,7 +42,8 @@ class CCBuilder:
         # Filter out non-minimal cycles
         simple_cycles = []
         for cycle in unique_cycles:
-            if not any(set(cycle) > set(smaller_cycle) for smaller_cycle in simple_cycles):
+            if not any(set(cycle) > set(smaller_cycle)
+                       for smaller_cycle in simple_cycles):
                 simple_cycles.append(cycle)
 
         return simple_cycles
@@ -86,4 +87,3 @@ class CCBuilder:
         )
 
         return cc
-        
