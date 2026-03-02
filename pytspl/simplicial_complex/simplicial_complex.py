@@ -462,6 +462,10 @@ class SimplicialComplex:
         L_upper = self.upper_laplacian_matrix(rank=rank)
         return L_lower + L_upper
 
+    def hodge_laplacians(self) -> dict[int, csr_matrix]:
+        """Compute the Hodge Laplacian matrices for all dimensions."""
+        return {k: self.hodge_laplacian_matrix(rank=k) for k in range(self.max_dim + 1)}
+
     # Shifting and embeddings
     def apply_lower_shifting(
             self,
