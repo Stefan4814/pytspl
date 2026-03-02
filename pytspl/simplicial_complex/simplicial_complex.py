@@ -34,6 +34,7 @@ class SimplicialComplex:
         triangles: list = None,
         node_features: dict = None,
         edge_features: dict = None,
+        simplex_features: dict[int, dict] | None = None,
     ):
         """
         Create a simplicial complex. Supports higher dimensions via the
@@ -53,6 +54,11 @@ class SimplicialComplex:
                 is provided.
             node_features (dict, optional): Dict of node features.
             edge_features (dict, optional): Dict of edge features.
+            simplex_features (dict[int, dict], optional): Mapping of dimension
+                to a dict of features for that dimension's simplices. Keys must
+                be simplices present in the complex. If provided for dim 0/1 it
+                overrides auto-filled ``node_features``/``edge_features`` in
+                that dimension.
         """
         node_features = node_features or {}
         edge_features = edge_features or {}
@@ -92,6 +98,7 @@ class SimplicialComplex:
         if simplices is not None:
             self._validate_legacy_args(nodes, edges, triangles)
 
+        self._features_by_dim = self._init_features_by_dim(simplex_features)
         self._incidence_matrices = self._compute_incidence_matrices()
 
     # Construction helpers
@@ -274,6 +281,65 @@ class SimplicialComplex:
         return simplices
 
     # Features
+    def _init_features_by_dim(
+        self, simplex_features: dict[int, dict] | None
+    ) -> list[dict]:
+        """Initialize per-dimension simplex features with legacy compatibility."""
+        features_by_dim: list[dict] = [dict() for _ in range(self.max_dim + 1)]
+
+        if simplex_features:
+            for dim, fmap in simplex_features.items():
+                if dim < 0 or dim > self.max_dim:
+                    raise ValueError(
+                        f"Feature dimension {dim} exceeds complex dimension {self.max_dim}."
+                    )
+                normalized = {}
+                simplices_set = set(self._simplices_by_dim[dim])
+                for simplex, value in fmap.items():
+                    simplex_t = tuple(simplex)
+                    if simplex_t not in simplices_set:
+                        raise ValueError(
+                            f"Feature provided for simplex {simplex_t} which is not in the complex."
+                        )
+                    normalized[simplex_t] = value
+                features_by_dim[dim].update(normalized)
+
+        # Fill legacy features if that dimension has none set explicitly.
+        if self.node_features and not features_by_dim[0]:
+            features_by_dim[0] = {
+                (k if isinstance(k, tuple) else (k,)): v
+                for k, v in self.node_features.items()
+            }
+        if self.max_dim >= 1 and self.edge_features and not features_by_dim[1]:
+            features_by_dim[1] = {tuple(k): v for k, v in self.edge_features.items()}
+
+        return features_by_dim
+
+    def get_simplex_features(self, dim: int, name: str | None = None) -> dict:
+        """
+        Return the feature mapping for the given dimension.
+
+        Args:
+            dim (int): Dimension of the simplices.
+            name (str, optional): If provided, extract that field from feature dicts.
+
+        Returns:
+            dict: Mapping of simplex -> feature value(s).
+        """
+        if dim < 0 or dim > self.max_dim:
+            raise ValueError(
+                f"Dimension {dim} exceeds complex dimension {self.max_dim}."
+            )
+        features = self._features_by_dim[dim]
+        if name:
+            try:
+                return {key: value[name] for key, value in features.items()}
+            except KeyError:
+                raise KeyError(
+                    f"Simplex feature {name} does not exist in dimension {dim}."
+                )
+        return features
+
     def edge_feature_names(self) -> list[str]:
         """Return the list of edge feature names."""
         if len(self.get_edge_features()) == 0:

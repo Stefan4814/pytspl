@@ -30,6 +30,7 @@ class SCBuilder:
         node_features: dict = {},
         edge_features: dict = {},
         simplices: Optional[dict[int, list]] = None,
+        simplex_features: Optional[dict[int, dict]] = None,
     ):
         """Initialize the SCBuilder object."""
         # 0-simplices - nodes
@@ -42,6 +43,8 @@ class SCBuilder:
         self.edge_features = edge_features
         # optional higher-dimensional simplices
         self.simplices = simplices
+        # optional per-dimension simplex features
+        self.simplex_features = simplex_features
 
     def triangles(self) -> list:
         """
@@ -125,6 +128,7 @@ class SCBuilder:
         dist_threshold: float = 1.5,
         triangles=None,
         simplices: Optional[dict[int, list]] = None,
+        simplex_features: Optional[dict[int, dict]] = None,
         only_2d: bool = True,
     ) -> SimplicialComplex:
         """
@@ -146,6 +150,9 @@ class SCBuilder:
             simplices (dict[int, list], optional): Explicit mapping of
             dimension -> simplices to build higher-dimensional complexes.
             If provided, triangle inference is skipped.
+            simplex_features (dict[int, dict], optional): Mapping of dimension
+                -> {simplex: feature} to attach features to any dimension.
+                Passed through to SimplicialComplex.
             only_2d (bool, optional): If True (default), restrict to up to
             triangles; if False, construct all simplices via cliques.
 
@@ -154,12 +161,15 @@ class SCBuilder:
         """
         if simplices is None and self.simplices is not None:
             simplices = self.simplices
+        if simplex_features is None and self.simplex_features is not None:
+            simplex_features = self.simplex_features
 
         if simplices is not None:
             return SimplicialComplex(
                 simplices=simplices,
                 node_features=self.node_features,
                 edge_features=self.edge_features,
+                simplex_features=simplex_features,
             )
 
         if not only_2d:
@@ -168,6 +178,7 @@ class SCBuilder:
                 simplices=simplices,
                 node_features=self.node_features,
                 edge_features=self.edge_features,
+                simplex_features=simplex_features,
             )
 
         if triangles is None:
@@ -187,6 +198,7 @@ class SCBuilder:
             triangles=triangles,
             node_features=self.node_features,
             edge_features=self.edge_features,
+            simplex_features=simplex_features,
         )
 
         return sc
