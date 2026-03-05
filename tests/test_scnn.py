@@ -4,12 +4,21 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 import torch
+import torch.nn as nn
 
 from pytspl.scnn.chebyshev import assemble_powers, normalize_laplacian, normalize_like
+from pytspl.scnn.highlevel import (
+    MaskedReconstructionTrainer,
+    SimplicialBatch,
+    SimplicialConvBlock,
+    SimplicialConvStack,
+    build_cochains,
+    build_normalized_operators,
+    mask_cochains,
+)
 from pytspl.scnn.scnn import (
-    Coboundary,
-    SimplicialConvolution,
-    SimplicialConvolution2,
+    CoboundaryConv,
+    SimplicialConv,
     coo2tensor,
 )
 from pytspl.scnn.utils import (
@@ -61,6 +70,46 @@ def _naive_assemble_powers(K: int, L: torch.Tensor, x: torch.Tensor) -> torch.Te
                     next_cur[b, c, :] = torch.sparse.mm(L, v).reshape(-1)
             cur = next_cur
     return torch.cat(outs, dim=-1)
+
+
+class _DummySC:
+    def __init__(self):
+        self.shape = (3, 2)
+        self._simplices_by_dim = [
+            [(0,), (1,), (2,)],
+            [(0, 1), (1, 2)],
+        ]
+        self._features = {
+            0: {(0,): 1.0, (1,): 2.0, (2,): 3.0},
+            1: {(0, 1): 10.0},
+        }
+
+    def get_simplex_features(self, rank: int):
+        return self._features[rank]
+
+    def hodge_laplacian_matrix(self, rank: int):
+        if rank == 0:
+            return sp.csr_matrix(
+                np.array(
+                    [
+                        [2.0, -1.0, 0.0],
+                        [-1.0, 2.0, -1.0],
+                        [0.0, -1.0, 2.0],
+                    ],
+                    dtype=np.float64,
+                )
+            )
+        return sp.csr_matrix(np.array([[2.0, -1.0], [-1.0, 2.0]], dtype=np.float64))
+
+    def lower_laplacian_matrix(self, rank: int):
+        if rank == 1:
+            return sp.eye(2, format="csr", dtype=np.float64)
+        raise ValueError("lower_laplacian_matrix only used for rank>0 in these tests")
+
+    def upper_laplacian_matrix(self, rank: int):
+        if rank == 0:
+            return sp.eye(3, format="csr", dtype=np.float64)
+        return sp.csr_matrix((2, 2), dtype=np.float64)
 
 
 # Tests: utils
@@ -252,8 +301,8 @@ def test_simplicial_convolution_forward_shape_and_grad():
 
     x = torch.randn(B, C_in, M, requires_grad=True)
 
-    layer = SimplicialConvolution(K=K, C_in=C_in, C_out=C_out, variance=0.1)
-    y = layer(L, x)
+    layer = SimplicialConv(orders=K, C_in=C_in, C_out=C_out, variance=0.1)
+    y = layer(x, L=L)
 
     assert tuple(y.shape) == (B, C_out, M)
 
@@ -271,10 +320,10 @@ def test_simplicial_convolution_no_bias_works():
     L = scipy_to_torch_sparse(_make_spd_sparse(M, density=0.2, seed=66)).coalesce()
     x = torch.randn(B, C_in, M)
 
-    layer = SimplicialConvolution(
-        K=K, C_in=C_in, C_out=C_out, enable_bias=False, variance=0.1
+    layer = SimplicialConv(
+        orders=K, C_in=C_in, C_out=C_out, enable_bias=False, variance=0.1
     )
-    y = layer(L, x)
+    y = layer(x, L=L)
     assert tuple(y.shape) == (B, C_out, M)
     assert layer.bias.ndim == 0
 
@@ -284,24 +333,24 @@ def test_simplicial_convolution_input_validation():
     x = torch.randn(2, 1, 8)
 
     with pytest.raises(ValueError):
-        SimplicialConvolution(K=0, C_in=1, C_out=2)
+        SimplicialConv(orders=0, C_in=1, C_out=2)
 
     with pytest.raises(ValueError):
-        SimplicialConvolution(K=2, C_in=1, C_out=2, groups=2)
+        SimplicialConv(orders=2, C_in=1, C_out=2, groups=2)
 
-    layer = SimplicialConvolution(K=2, C_in=1, C_out=2)
+    layer = SimplicialConv(orders=2, C_in=1, C_out=2)
 
     with pytest.raises(TypeError):
-        layer(torch.eye(8), x)
+        layer(x, L=torch.eye(8))
 
     with pytest.raises(ValueError):
-        layer(L, torch.randn(2, 8))
+        layer(torch.randn(2, 8), L=L)
 
     with pytest.raises(ValueError):
-        layer(L, torch.randn(2, 2, 8))
+        layer(torch.randn(2, 2, 8), L=L)
 
     with pytest.raises(ValueError):
-        layer(L, torch.randn(2, 1, 7))
+        layer(torch.randn(2, 1, 7), L=L)
 
 
 def test_simplicial_convolution2_forward_shape_and_grad():
@@ -318,8 +367,10 @@ def test_simplicial_convolution2_forward_shape_and_grad():
 
     x = torch.randn(B, C_in, M, requires_grad=True)
 
-    layer = SimplicialConvolution2(K1=K1, K2=K2, C_in=C_in, C_out=C_out, variance=0.1)
-    y = layer(Ll_t, Lu_t, x)
+    layer = SimplicialConv(
+        orders=[K1, K2], C_in=C_in, C_out=C_out, variance=0.1
+    )
+    y = layer(x, Ll=Ll_t, Lu=Lu_t)
 
     assert tuple(y.shape) == (B, C_out, M)
 
@@ -339,33 +390,33 @@ def test_simplicial_convolution2_no_bias_and_validation():
     Lu_t = scipy_to_torch_sparse((0.5 * L).tocsr()).coalesce()
     x = torch.randn(2, 1, M)
 
-    layer = SimplicialConvolution2(
-        K1=2, K2=2, C_in=1, C_out=2, enable_bias=False, variance=0.1
+    layer = SimplicialConv(
+        orders=[2, 2], C_in=1, C_out=2, enable_bias=False, variance=0.1
     )
-    y = layer(Ll_t, Lu_t, x)
+    y = layer(x, Ll=Ll_t, Lu=Lu_t)
     assert tuple(y.shape) == (2, 2, M)
     assert layer.bias.ndim == 0
 
     with pytest.raises(ValueError):
-        SimplicialConvolution2(K1=0, K2=1, C_in=1, C_out=2)
+        SimplicialConv(orders=[0, 1], C_in=1, C_out=2)
 
     with pytest.raises(ValueError):
-        SimplicialConvolution2(K1=1, K2=1, C_in=1, C_out=2, groups=2)
+        SimplicialConv(orders=[1, 1], C_in=1, C_out=2, groups=2)
 
     with pytest.raises(TypeError):
-        layer(torch.eye(M), Lu_t, x)
+        layer(x, Ll=torch.eye(M), Lu=Lu_t)
 
     with pytest.raises(TypeError):
-        layer(Ll_t, torch.eye(M), x)
+        layer(x, Ll=Ll_t, Lu=torch.eye(M))
 
     with pytest.raises(ValueError):
-        layer(Ll_t, Lu_t, torch.randn(2, M))
+        layer(torch.randn(2, M), Ll=Ll_t, Lu=Lu_t)
 
     with pytest.raises(ValueError):
-        layer(Ll_t, Lu_t, torch.randn(2, 2, M))
+        layer(torch.randn(2, 2, M), Ll=Ll_t, Lu=Lu_t)
 
     with pytest.raises(ValueError):
-        layer(Ll_t, Lu_t, torch.randn(2, 1, M + 1))
+        layer(torch.randn(2, 1, M + 1), Ll=Ll_t, Lu=Lu_t)
 
 
 def test_coboundary_matches_naive_loop():
@@ -379,7 +430,7 @@ def test_coboundary_matches_naive_loop():
 
     x = torch.randn(B, C_in, M, requires_grad=True)
 
-    layer = Coboundary(C_in=C_in, C_out=C_out, variance=0.1)
+    layer = CoboundaryConv(C_in=C_in, C_out=C_out, variance=0.1)
     y_fast = layer(D_t, x)
     assert tuple(y_fast.shape) == (B, C_out, N)
 
@@ -413,13 +464,13 @@ def test_coboundary_no_bias_and_validation():
     D_t = scipy_to_torch_sparse(D).coalesce()
     x = torch.randn(B, C_in, M)
 
-    layer = Coboundary(C_in=C_in, C_out=C_out, enable_bias=False, variance=0.1)
+    layer = CoboundaryConv(C_in=C_in, C_out=C_out, enable_bias=False, variance=0.1)
     y = layer(D_t, x)
     assert tuple(y.shape) == (B, C_out, N)
     assert layer.bias.ndim == 0
 
     with pytest.raises(ValueError):
-        Coboundary(C_in=0, C_out=2)
+        CoboundaryConv(C_in=0, C_out=2)
 
     with pytest.raises(TypeError):
         layer(torch.eye(N, M), x)
@@ -432,3 +483,130 @@ def test_coboundary_no_bias_and_validation():
 
     with pytest.raises(ValueError):
         layer(D_t, torch.randn(B, C_in, M + 1))
+
+
+# Tests: high-level helpers
+@pytest.mark.parametrize("fill_strategy", ["zero", "mean", "median"])
+def test_mask_cochains_fill_strategies(fill_strategy: str):
+    x = torch.tensor([[[1.0, 2.0, 4.0, 8.0]]], dtype=torch.float32)
+    masked_xs, masks = mask_cochains([x], missing_pct=0.5, seed=11, fill_strategy=fill_strategy)
+
+    out = masked_xs[0]
+    known = masks[0]
+    missing = sorted(set(range(x.shape[2])) - set(known))
+    assert out.shape == x.shape
+    assert len(known) == 2
+    assert known == sorted(known)
+
+    if fill_strategy == "zero":
+        expected_fill = 0.0
+    elif fill_strategy == "mean":
+        expected_fill = float(x[0, 0, known].mean().item())
+    else:
+        expected_fill = float(x[0, 0, known].median().item())
+
+    for idx in missing:
+        assert float(out[0, 0, idx].item()) == pytest.approx(expected_fill)
+
+
+def test_simplicial_batch_mask_cochains_updates_metadata():
+    xs = [torch.arange(6, dtype=torch.float32).reshape(1, 1, 6)]
+    batch = SimplicialBatch(xs=xs).mask_cochains(0.25, seed=7, fill_strategy="zero")
+
+    assert batch.masks is not None
+    assert len(batch.masks) == 1
+    assert batch.metadata["missing_pct"] == pytest.approx(0.25)
+    assert batch.metadata["fill_strategy"] == "zero"
+
+
+def test_build_cochains_respects_order_and_fill_value():
+    sc = _DummySC()
+    xs = build_cochains(
+        sc,
+        topdim=1,
+        batch_size=2,
+        channels=3,
+        fill_value=-5.0,
+    )
+
+    assert len(xs) == 2
+    assert tuple(xs[0].shape) == (2, 3, 3)
+    assert tuple(xs[1].shape) == (2, 3, 2)
+    torch.testing.assert_close(xs[0][0, 0], torch.tensor([1.0, 2.0, 3.0]))
+    torch.testing.assert_close(xs[1][0, 0], torch.tensor([10.0, -5.0]))
+
+
+def test_build_normalized_operators_shapes_and_batch_method():
+    sc = _DummySC()
+    Lls, Lus = build_normalized_operators(sc, topdim=1, half_interval=True)
+    assert len(Lls) == 2
+    assert len(Lus) == 2
+    assert Lls[0].is_sparse and Lus[0].is_sparse
+    assert tuple(Lls[0].shape) == (3, 3)
+    assert tuple(Lls[1].shape) == (2, 2)
+
+    batch = SimplicialBatch(xs=build_cochains(sc, topdim=1))
+    out = batch.build_normalized_operators(sc, topdim=1, half_interval=False)
+    assert out is batch
+    assert batch.Lls is not None and batch.Lus is not None
+    assert batch.metadata["topdim"] == 1
+    assert batch.metadata["half_interval"] is False
+
+
+def test_simplicial_conv_block_and_stack_forward():
+    _seed_all(101)
+    sc = _DummySC()
+    xs = build_cochains(sc, topdim=1, batch_size=2, channels=1)
+    Lls, Lus = build_normalized_operators(sc, topdim=1)
+    Ls = [(ll + lu).coalesce() for ll, lu in zip(Lls, Lus)]
+
+    block = SimplicialConvBlock(orders=2, C_in=1, C_hidden=4, C_out=1, depth=2)
+    y0 = block(xs[0], L=Ls[0])
+    assert tuple(y0.shape) == tuple(xs[0].shape)
+
+    stack = SimplicialConvStack(topdim=1, orders=2, colors=1, num_filters=4, depth=2)
+    ys = stack(xs, Ls=Ls)
+    assert len(ys) == 2
+    assert tuple(ys[0].shape) == tuple(xs[0].shape)
+    assert tuple(ys[1].shape) == tuple(xs[1].shape)
+
+    with pytest.raises(ValueError):
+        stack(xs, Lls=Lls, Lus=None)
+
+
+class _ScaleBatchModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.scale = nn.Parameter(torch.tensor(1.0))
+
+    def forward(self, batch: SimplicialBatch):
+        return [self.scale * x for x in batch.xs]
+
+
+def test_masked_reconstruction_trainer_fit_and_validation():
+    sc = _DummySC()
+    xs_target = build_cochains(sc, topdim=1, batch_size=1, channels=1)
+    batch = SimplicialBatch(
+        xs=[x.clone() for x in xs_target],
+        xs_target=[x.clone() for x in xs_target],
+    ).mask_cochains(0.5, seed=21)
+    batch.build_normalized_operators(sc, topdim=1)
+
+    trainer = MaskedReconstructionTrainer(
+        model=_ScaleBatchModel(),
+        optimizer=None,
+        criterion=nn.L1Loss(reduction="sum"),
+        topdim=1,
+        realizations=1,
+    )
+    out = trainer.fit(batch, num_epochs=2, realizations=1)
+
+    assert out["num_epochs"] == 2
+    assert out["realizations"] == 1
+    assert len(out["losses"]) == 1
+    assert len(out["losses"][0]) == 2
+    assert len(out["final_loss"]) == 1
+
+    bad_batch = SimplicialBatch(xs=[x.clone() for x in xs_target])
+    with pytest.raises(ValueError):
+        trainer.fit(bad_batch, num_epochs=1)
