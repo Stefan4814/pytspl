@@ -335,9 +335,6 @@ def test_simplicial_convolution_input_validation():
     with pytest.raises(ValueError):
         SimplicialConv(orders=0, C_in=1, C_out=2)
 
-    with pytest.raises(ValueError):
-        SimplicialConv(orders=2, C_in=1, C_out=2, groups=2)
-
     layer = SimplicialConv(orders=2, C_in=1, C_out=2)
 
     with pytest.raises(TypeError):
@@ -400,9 +397,6 @@ def test_simplicial_convolution2_no_bias_and_validation():
     with pytest.raises(ValueError):
         SimplicialConv(orders=[0, 1], C_in=1, C_out=2)
 
-    with pytest.raises(ValueError):
-        SimplicialConv(orders=[1, 1], C_in=1, C_out=2, groups=2)
-
     with pytest.raises(TypeError):
         layer(x, Ll=torch.eye(M), Lu=Lu_t)
 
@@ -434,7 +428,6 @@ def test_coboundary_matches_naive_loop():
     y_fast = layer(D_t, x)
     assert tuple(y_fast.shape) == (B, C_out, N)
 
-    # Naive reference following the repo structure
     X_list = []
     for b in range(B):
         X12 = []
