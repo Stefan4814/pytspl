@@ -6,11 +6,8 @@ from .chebyshev import (
 )
 
 from .scnn import (
-    Coboundary,
     CoboundaryConv,
     SimplicialConv,
-    SimplicialConvolution,
-    SimplicialConvolution2,
     coo2tensor,
 )
 from .highlevel import (
@@ -36,10 +33,7 @@ __all__ = [
 
     # scnn
     "SimplicialConv",
-    "SimplicialConvolution",
-    "SimplicialConvolution2",
     "CoboundaryConv",
-    "Coboundary",
     "coo2tensor",
     "MaskedReconstructionTrainer",
     "SimplicialBatch",

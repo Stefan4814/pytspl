@@ -30,6 +30,15 @@ class SimplicialBatch:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to(self, device: torch.device | str) -> "SimplicialBatch":
+        """
+        Move tensor fields of the batch to a target device.
+
+        Args:
+            device: Torch device or device string.
+
+        Returns:
+            A new `SimplicialBatch` with moved tensors.
+        """
         def _move(items: Optional[list[torch.Tensor]]) -> Optional[list[torch.Tensor]]:
             if items is None:
                 return None
@@ -54,6 +63,14 @@ class SimplicialBatch:
     ) -> "SimplicialBatch":
         """
         Mask current cochains and store both masked tensors and known-index masks.
+
+        Args:
+            missing_pct: Fraction of entries to mask in each rank.
+            seed: Optional random seed for reproducible masking.
+            fill_strategy: Fill policy for masked entries: "median", "mean", or "zero".
+
+        Returns:
+            Self, after updating `xs`, `masks`, and `metadata`.
         """
         masked_xs, masks = mask_cochains(
             self.xs,
@@ -79,6 +96,17 @@ class SimplicialBatch:
     ) -> "SimplicialBatch":
         """
         Build and store normalized lower/upper operators for this batch.
+
+        Args:
+            sc: Simplicial complex object exposing Laplacian methods.
+            topdim: Highest simplicial rank to include.
+            half_interval: Whether to normalize to [0, 1] instead of [-1, 1].
+            eps: Numerical guard for near-zero spectral radius.
+            dtype: Target dtype for returned sparse tensors.
+            device: Optional target device.
+
+        Returns:
+            Self, after setting `Lls`, `Lus`, and related metadata.
         """
         Lls, Lus = build_normalized_operators(
             sc,
@@ -107,6 +135,18 @@ def build_cochains(
 ) -> list[torch.Tensor]:
     """
     Build dense cochain tensors (B x C x M_d) for d=0..topdim from simplex features.
+
+    Args:
+        sc: Simplicial complex object with simplex features/order.
+        topdim: Highest simplicial rank to include.
+        batch_size: Batch dimension size.
+        channels: Number of channels per rank.
+        dtype: Tensor dtype.
+        device: Optional tensor device.
+        fill_value: Value used when a simplex has no feature entry.
+
+    Returns:
+        List of dense tensors, one per rank, each shaped (B, C, M_d).
     """
     if topdim < 0:
         raise ValueError("topdim must be >= 0")
@@ -137,6 +177,17 @@ def build_normalized_operators(
 ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
     """
     Build normalized lower/upper operators per rank and convert to torch sparse tensors.
+
+    Args:
+        sc: Simplicial complex object exposing Hodge/lower/upper Laplacians.
+        topdim: Highest simplicial rank to include.
+        half_interval: Whether to normalize to [0, 1] instead of [-1, 1].
+        eps: Numerical guard for near-zero spectral radius.
+        dtype: Target dtype for returned sparse tensors.
+        device: Optional target device.
+
+    Returns:
+        Tuple `(Lls, Lus)` of sparse torch tensors, one list per rank.
     """
     if topdim < 0:
         raise ValueError("topdim must be >= 0")
@@ -172,9 +223,16 @@ def mask_cochains(
     """
     Randomly mask entries per rank and fill missing values.
 
+    Args:
+        xs: Sequence of cochain tensors shaped (B, C, M).
+        missing_pct: Fraction of entries to mask in each rank.
+        seed: Optional random seed for reproducible masking.
+        fill_strategy: Fill policy for masked entries: "median", "mean", or "zero".
+
     Returns:
-        masked_xs: same shapes as input tensors
-        known_indices: list of kept indices per rank
+        Tuple `(masked_xs, known_indices)` where:
+        - `masked_xs` keeps input shapes with filled masked values.
+        - `known_indices` stores retained indices per rank.
     """
     if not 0.0 <= missing_pct < 1.0:
         raise ValueError("missing_pct must be in [0, 1)")
@@ -233,6 +291,20 @@ class SimplicialConvBlock(nn.Module):
         activation: Optional[nn.Module] = None,
         enable_bias: bool = True,
     ):
+        """
+        Create a multi-layer simplicial convolution block.
+
+        Args:
+            orders: Polynomial order(s) passed to each `SimplicialConv`.
+            C_in: Input channels.
+            C_hidden: Hidden channels for intermediate layers.
+            C_out: Output channels.
+            depth: Number of convolution layers in this block.
+            basis: Polynomial basis, "power" or "chebyshev".
+            variance: Parameter init scaling for each layer.
+            activation: Activation module between layers (defaults to LeakyReLU).
+            enable_bias: Whether each layer uses bias.
+        """
         super().__init__()
         if depth < 1:
             raise ValueError("depth must be >= 1")
@@ -266,6 +338,19 @@ class SimplicialConvBlock(nn.Module):
         Ll: Optional[torch.Tensor] = None,
         Lu: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        """
+        Apply all convolution layers in sequence.
+
+        Args:
+            x: Input tensor of shape (B, C_in, M).
+            operators: Explicit operator list for multi-operator mode.
+            L: Single-operator shortcut.
+            Ll: Lower operator in two-operator mode.
+            Lu: Upper operator in two-operator mode.
+
+        Returns:
+            Output tensor after the final convolution layer.
+        """
         out = x
         for i, layer in enumerate(self.layers):
             out = layer(out, operators=operators, L=L, Ll=Ll, Lu=Lu)
@@ -292,6 +377,20 @@ class SimplicialConvStack(nn.Module):
         activation: Optional[nn.Module] = None,
         enable_bias: bool = True,
     ):
+        """
+        Build one `SimplicialConvBlock` per simplicial rank.
+
+        Args:
+            topdim: Highest rank to model.
+            orders: Polynomial order(s) used by each block.
+            colors: Input/output channels per rank.
+            num_filters: Hidden-width multiplier for each block.
+            depth: Number of layers per block.
+            basis: Polynomial basis, "power" or "chebyshev".
+            variance: Parameter init scaling.
+            activation: Activation module between layers.
+            enable_bias: Whether each convolution uses bias.
+        """
         super().__init__()
         if topdim < 0:
             raise ValueError("topdim must be >= 0")
@@ -326,6 +425,19 @@ class SimplicialConvStack(nn.Module):
         Lus: Optional[Sequence[torch.Tensor]] = None,
         operators_by_dim: Optional[Sequence[Sequence[torch.Tensor]]] = None,
     ) -> list[torch.Tensor]:
+        """
+        Apply the per-rank blocks to a list of rank-aligned cochains.
+
+        Args:
+            xs: Input cochains, one tensor per rank.
+            Ls: Optional single-operator list, one per rank.
+            Lls: Optional lower-operator list, one per rank.
+            Lus: Optional upper-operator list, one per rank.
+            operators_by_dim: Optional explicit operator lists per rank.
+
+        Returns:
+            List of output tensors, one per rank.
+        """
         if len(xs) != self.topdim + 1:
             raise ValueError(f"Expected {self.topdim + 1} cochains, got {len(xs)}")
 
@@ -362,6 +474,22 @@ class MaskedReconstructionTrainer:
         topdim: Optional[int] = None,
         realizations: int = 1,
     ):
+        """
+        Configure trainer state for masked cochain reconstruction.
+
+        Args:
+            model: Module that maps a `SimplicialBatch` to per-rank predictions.
+            optimizer: Optional pre-built optimizer; auto-created if None.
+            criterion: Loss function used on known indices.
+            optimizer_type: Optimizer name used when auto-creating optimizer.
+            optimizer_kwargs: Optimizer keyword arguments.
+            zero_grad_set_to_none: Passed to `optimizer.zero_grad`.
+            topdim: Optional max rank to train; defaults to batch rank span.
+            realizations: Number of repeated training runs in `fit`.
+
+        Returns:
+            None.
+        """
         if realizations <= 0:
             raise ValueError("realizations must be > 0")
         if optimizer_kwargs is None:
@@ -384,6 +512,16 @@ class MaskedReconstructionTrainer:
         optimizer_type: str,
         optimizer_kwargs: dict[str, Any],
     ) -> torch.optim.Optimizer:
+        """
+        Create an optimizer instance from a name and kwargs.
+
+        Args:
+            optimizer_type: One of supported optimizer names.
+            optimizer_kwargs: Keyword arguments passed to optimizer constructor.
+
+        Returns:
+            Instantiated torch optimizer bound to `self.model.parameters()`.
+        """
         opts: dict[str, type[torch.optim.Optimizer]] = {
             "adam": torch.optim.Adam,
             "adamw": torch.optim.AdamW,
@@ -405,6 +543,16 @@ class MaskedReconstructionTrainer:
         *,
         optimizer_kwargs: Optional[dict[str, Any]] = None,
     ) -> None:
+        """
+        Replace the current optimizer with a newly constructed one.
+
+        Args:
+            optimizer_type: Optimizer name.
+            optimizer_kwargs: Optimizer keyword arguments.
+
+        Returns:
+            None.
+        """
         if optimizer_kwargs is None:
             optimizer_kwargs = {"lr": 1e-3}
         self.optimizer_type = optimizer_type
@@ -412,15 +560,43 @@ class MaskedReconstructionTrainer:
         self.optimizer = self._make_optimizer(optimizer_type, self.optimizer_kwargs)
 
     def set_zero_grad_mode(self, *, set_to_none: bool = False) -> None:
+        """
+        Configure whether gradients are set to None on zeroing.
+
+        Args:
+            set_to_none: Value forwarded to `optimizer.zero_grad(set_to_none=...)`.
+
+        Returns:
+            None.
+        """
         self.zero_grad_set_to_none = bool(set_to_none)
 
     def set_realizations(self, realizations: int) -> None:
+        """
+        Update the default number of realizations used during `fit`.
+
+        Args:
+            realizations: Number of repeated runs, must be > 0.
+
+        Returns:
+            None.
+        """
         if realizations <= 0:
             raise ValueError("realizations must be > 0")
         self.realizations = int(realizations)
 
     @staticmethod
     def _clone_batch(batch: SimplicialBatch, topdim: int) -> SimplicialBatch:
+        """
+        Clone batch tensors up to `topdim` for an isolated training run.
+
+        Args:
+            batch: Source batch.
+            topdim: Highest rank to include in the clone.
+
+        Returns:
+            A new batch with cloned/co-sliced tensors and copied metadata.
+        """
         return SimplicialBatch(
             xs=[x.clone() for x in batch.xs[: topdim + 1]],
             Lls=batch.Lls[: topdim + 1] if batch.Lls is not None else None,
@@ -446,6 +622,26 @@ class MaskedReconstructionTrainer:
         zero_grad_set_to_none: Optional[bool] = None,
         realization_now: Optional[int] = None
     ) -> dict[str, Any]:
+        """
+        Train the model for masked reconstruction.
+
+        Args:
+            batch: Input batch with `xs_target`, `masks`, `Lls`, and `Lus`.
+            num_epochs: Number of training epochs per realization.
+            print_every: Optional logging frequency (in epochs).
+            realizations: Optional override for number of repeated runs.
+            optimizer_type: Optional optimizer name to switch before training.
+            optimizer_kwargs: Optional kwargs used with `optimizer_type`.
+            zero_grad_set_to_none: Optional override for zero-grad mode.
+            realization_now: Optional index shown in printed progress lines.
+
+        Returns:
+            Dict with keys:
+            - `losses`: per-realization epoch losses
+            - `final_loss`: last loss per realization
+            - `num_epochs`: epochs used
+            - `realizations`: number of realizations run
+        """
         if num_epochs <= 0:
             raise ValueError("num_epochs must be > 0")
         if (print_every is not None) and (print_every <= 0):
