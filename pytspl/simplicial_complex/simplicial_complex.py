@@ -417,6 +417,10 @@ class SimplicialComplex:
         if matrix is None:
             raise ValueError(f"No incidence matrix of rank {rank} available.")
         return self.tocsr(matrix)
+    
+    def incidence_matrix_sparse(self, rank: int) -> csr_matrix:
+        """Return the sparse incidence matrix for a given rank."""
+        return csr_matrix(self._incidence_matrices[rank], dtype=float)
 
     def adjacency_matrix(self) -> csr_matrix:
         """Compute the adjacency matrix of the simplicial complex."""
